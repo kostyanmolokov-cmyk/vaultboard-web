@@ -573,3 +573,71 @@ html[data-look='glass'] .item .iacts { background: rgba(30,28,50,.8); }
   html[data-look] .item:hover { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) { html[data-look] .item { transition: none; } html[data-look] .item:hover { transform: none; } }
+
+/* ───── палитры по пространствам, стекло, живые сферы, микроанимации ───── */
+@property --p-a  { syntax: '<color>'; inherits: true; initial-value: #6c4cf5; }
+@property --p-ah { syntax: '<color>'; inherits: true; initial-value: #5a3bea; }
+@property --p-o1l { syntax: '<color>'; inherits: true; initial-value: #bda9ff; } @property --p-o1m { syntax: '<color>'; inherits: true; initial-value: #7a5cff; } @property --p-o1d { syntax: '<color>'; inherits: true; initial-value: #4a2fd0; }
+@property --p-o2l { syntax: '<color>'; inherits: true; initial-value: #ffb3d6; } @property --p-o2m { syntax: '<color>'; inherits: true; initial-value: #f0629f; } @property --p-o2d { syntax: '<color>'; inherits: true; initial-value: #c23a86; }
+@property --p-o3l { syntax: '<color>'; inherits: true; initial-value: #9fe0ff; } @property --p-o3m { syntax: '<color>'; inherits: true; initial-value: #43a2f0; } @property --p-o3d { syntax: '<color>'; inherits: true; initial-value: #2468c8; }
+@property --p-s1 { syntax: '<color>'; inherits: true; initial-value: #ffd3ec; } @property --p-s2 { syntax: '<color>'; inherits: true; initial-value: #cddfff; } @property --p-s3 { syntax: '<color>'; inherits: true; initial-value: #e0d0ff; } @property --p-sb { syntax: '<color>'; inherits: true; initial-value: #f4f1fd; }
+html { transition: --p-a .9s ease, --p-ah .9s ease, --p-o1l .9s ease, --p-o1m .9s ease, --p-o1d .9s ease, --p-o2l .9s ease, --p-o2m .9s ease, --p-o2d .9s ease, --p-o3l .9s ease, --p-o3m .9s ease, --p-o3d .9s ease, --p-s1 .9s ease, --p-s2 .9s ease, --p-s3 .9s ease, --p-sb .9s ease; }
+html[data-pal='emerald'] { --p-a: #0fa57f; --p-ah: #0b8a6b; --p-o1l: #a8f0d8; --p-o1m: #1fc79d; --p-o1d: #0a7d62; --p-o2l: #b4ecff; --p-o2m: #2fb4e6; --p-o2d: #1273ab; --p-o3l: #d2f8c4; --p-o3m: #7fdc66; --p-o3d: #3a9a38; --p-s1: #c6f4e4; --p-s2: #cdeeff; --p-s3: #d4f6da; --p-sb: #eefaf6; }
+html[data-pal='peach'] { --p-a: #f0601c; --p-ah: #d9500f; --p-o1l: #ffc89a; --p-o1m: #ff8a42; --p-o1d: #d4501a; --p-o2l: #ffe08a; --p-o2m: #f7b733; --p-o2d: #c98412; --p-o3l: #ffb8c0; --p-o3m: #f0647a; --p-o3d: #c13553; --p-s1: #ffd9bd; --p-s2: #ffe9d2; --p-s3: #ffc8b4; --p-sb: #fdf3ea; }
+:root[data-look='pearl'][data-pal][data-theme] {
+  --accent: var(--p-a); --accent-hi: var(--p-ah);
+  --accent-soft: color-mix(in srgb, var(--p-a) 12%, transparent); --hover: color-mix(in srgb, var(--p-a) 7%, transparent); --press: color-mix(in srgb, var(--p-a) 12%, transparent);
+  --line: color-mix(in srgb, var(--p-a) 16%, transparent); --line-2: color-mix(in srgb, var(--p-a) 30%, transparent);
+  --btn: linear-gradient(180deg, color-mix(in srgb, var(--p-a) 76%, #fff), var(--p-a) 52%, var(--p-ah)); --btn-glow: color-mix(in srgb, var(--p-a) 50%, transparent);
+  --o1: radial-gradient(circle at 32% 28%, #fff 0, color-mix(in srgb, var(--p-o1l) 25%, #fff) 7%, var(--p-o1l) 30%, var(--p-o1m) 66%, var(--p-o1d) 100%);
+  --o2: radial-gradient(circle at 32% 28%, #fff 0, color-mix(in srgb, var(--p-o2l) 25%, #fff) 8%, var(--p-o2l) 34%, var(--p-o2m) 70%, var(--p-o2d) 100%);
+  --o3: radial-gradient(circle at 32% 28%, #fff 0, color-mix(in srgb, var(--p-o3l) 25%, #fff) 9%, var(--p-o3l) 36%, var(--p-o3m) 72%, var(--p-o3d) 100%);
+  --shadow: 0 1px 0 #fff inset, 0 30px 60px -26px color-mix(in srgb, var(--p-a) 40%, transparent), 0 8px 22px -10px color-mix(in srgb, var(--p-o2m) 26%, transparent);
+}
+html[data-look='pearl'][data-pal] .scene { background: radial-gradient(900px 620px at 10% 6%, var(--p-s1) 0, transparent 62%), radial-gradient(800px 600px at 92% 10%, var(--p-s2) 0, transparent 60%), radial-gradient(1000px 700px at 66% 104%, var(--p-s3) 0, transparent 62%), var(--p-sb); }
+html[data-look='pearl'][data-pal] body { background: var(--p-sb); }
+html[data-look='pearl'] .orbs i:nth-child(1) { box-shadow: inset -26px -36px 70px color-mix(in srgb, var(--p-o1d) 62%, transparent), inset 16px 20px 46px rgba(255,255,255,.75), 0 50px 90px -24px color-mix(in srgb, var(--p-o1m) 60%, transparent); }
+html[data-look='pearl'] .orbs i:nth-child(2) { box-shadow: inset -16px -22px 46px color-mix(in srgb, var(--p-o2d) 50%, transparent), inset 10px 12px 30px rgba(255,255,255,.75), 0 36px 60px -20px color-mix(in srgb, var(--p-o2m) 55%, transparent); }
+html[data-look='pearl'] .orbs i:nth-child(3) { box-shadow: inset -10px -14px 30px color-mix(in srgb, var(--p-o3d) 50%, transparent), inset 7px 8px 20px rgba(255,255,255,.8), 0 24px 40px -14px color-mix(in srgb, var(--p-o3m) 55%, transparent); }
+
+/* стекло: полупрозрачные панели, размытие, светлая обводка, цветная тень */
+html[data-look='pearl'] .side, html[data-look='pearl'] .group, html[data-look='pearl'] .top, html[data-look='pearl'] .empty, html[data-look='pearl'] .gate-card {
+  background-color: rgba(255,255,255,.65); background-image: none; -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5); border: 1px solid rgba(255,255,255,.8); }
+html[data-look='pearl'] .group:hover { border-color: color-mix(in srgb, var(--p-a) 42%, #fff); box-shadow: 0 1px 0 #fff inset, 0 0 0 4px color-mix(in srgb, var(--p-a) 9%, transparent), 0 44px 70px -26px color-mix(in srgb, var(--p-a) 50%, transparent), 0 12px 26px -10px color-mix(in srgb, var(--p-o2m) 30%, transparent); }
+html[data-look='pearl'] .grain { opacity: .035; mix-blend-mode: multiply; }
+
+/* живые сферы: большая бродит медленно, малая быстрее, плюс параллакс за курсором */
+.orbs { --px: 0; --py: 0; --pd: 0; }
+.orbs i { --k: 30; --sk: .05; translate: calc(var(--px) * var(--k) * 1px) calc(var(--py) * var(--k) * 1px); scale: calc(1 + var(--pd) * var(--sk)); animation-name: drift; will-change: transform, translate; }
+.orbs i:nth-child(1) { --k: 26; --sk: .035; animation-duration: 16s; }
+.orbs i:nth-child(2) { --k: 58; --sk: .07; animation-duration: 12s; animation-delay: -4s; }
+.orbs i:nth-child(3) { --k: 94; --sk: .11; animation-duration: 9.5s; animation-delay: -7s; }
+@keyframes drift { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 30% { transform: translate(14px, -30px) rotate(3deg); } 65% { transform: translate(-16px, -12px) rotate(-2deg); } }
+
+/* появление карточек волной при загрузке и смене пространства */
+@keyframes rise { from { opacity: 0; transform: translateY(18px) scale(.985); } }
+.board.enter .group { animation: rise .6s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(var(--gi, 0) * 80ms); }
+.board.enter .item { animation: rise .5s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(140ms + var(--ii, 0) * 32ms); }
+.board.enter .group-add { animation: rise .5s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(200ms + var(--gi, 0) * 80ms); }
+
+/* быстрое копирование: выезжает справа при наведении */
+.item .quick { display: none; }
+html[data-look] .item .quick { display: grid; place-items: center; position: absolute; right: 12px; top: 50%; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer;
+  background: var(--btn, var(--accent)); box-shadow: 0 8px 16px -6px var(--btn-glow, rgba(0,0,0,.4)), inset 0 1px 0 rgba(255,255,255,.4);
+  opacity: 0; pointer-events: none; transform: translate(16px, -50%) scale(.8); transition: transform .32s cubic-bezier(.34, 1.56, .64, 1), opacity .18s ease-out; }
+html[data-look] .item:hover .quick, html[data-look] .item:focus-within .quick { opacity: 1; pointer-events: auto; transform: translate(0, -50%) scale(1); }
+html[data-look] .item .quick:hover { filter: brightness(1.08); } html[data-look] .item .quick:active { transform: translate(0, -50%) scale(.92); }
+html[data-look] .item .quick.done { background: linear-gradient(180deg, #4fd18f, #1f9d63); }
+html[data-look='pearl'] .item:hover { background: #fff; }
+@media (max-width: 600px), (hover: none) { html[data-look] .item .quick { display: none; } }
+
+/* «+ Новая группа» */
+html[data-look] .group-add { position: relative; isolation: isolate; overflow: hidden; transition: border-color .25s, color .25s, transform .25s cubic-bezier(.34, 1.56, .64, 1), box-shadow .25s; }
+html[data-look] .group-add::before { content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0; transform: scale(.94); transition: opacity .3s ease-out, transform .4s cubic-bezier(.2, .8, .2, 1);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--p-a, var(--accent)) 16%, transparent), color-mix(in srgb, var(--p-o2m, var(--accent)) 16%, transparent) 55%, color-mix(in srgb, var(--p-o3m, var(--accent)) 14%, transparent)); }
+html[data-look] .group-add svg { transition: transform .45s cubic-bezier(.34, 1.56, .64, 1); }
+html[data-look] .group-add:hover { border-color: color-mix(in srgb, var(--p-a, var(--accent)) 60%, transparent); color: var(--accent-hi); transform: translateY(-2px); box-shadow: 0 14px 26px -16px color-mix(in srgb, var(--p-a, var(--accent)) 60%, transparent); background: rgba(255,255,255,.5); }
+html[data-look] .group-add:hover::before { opacity: 1; transform: scale(1); }
+html[data-look] .group-add:hover svg { transform: rotate(90deg) scale(1.1); }
+@media (prefers-reduced-motion: reduce) { .orbs i { animation: none; translate: none; scale: none; } .board.enter .group, .board.enter .item, .board.enter .group-add { animation: none; } html { transition: none; } }
+.lockrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .lockrow.off { opacity: .5; } .lockrow .num { width: 84px; } .lockrow .chip { cursor: pointer; }

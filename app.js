@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606390';
-import * as fb from './lib/firebase.js?v=1794606390';
-import * as st from './lib/store.js?v=1794606390';
-import * as sync from './lib/sync.js?v=1794606390';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606390';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606390';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606390';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606390';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606652';
+import * as fb from './lib/firebase.js?v=1794606652';
+import * as st from './lib/store.js?v=1794606652';
+import * as sync from './lib/sync.js?v=1794606652';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606652';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606652';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606652';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606652';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -36,6 +36,17 @@ async function boot() {
 function applyTheme() {
   const sc = S.prefs.scene || 'pearl', d = document.documentElement.dataset;
   d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
+  applyPalette();
+}
+
+// Цвета сфер и акцента зависят от пространства: фиолетово-розовый, изумрудно-голубой, тёпло-персиковый
+const PALETTES = ['violet', 'emerald', 'peach'];
+function applyPalette() {
+  const d = document.documentElement.dataset;
+  if (d.look !== 'pearl') { delete d.pal; return; }
+  if (d.scene === 'peach') { d.pal = 'peach'; return; }
+  const i = S.data ? liveSpaces(S.data).findIndex((s) => s.id === S.spaceId) : 0;
+  d.pal = PALETTES[(i < 0 ? 0 : i) % PALETTES.length];
 }
 
 async function enter(key) {
@@ -175,6 +186,7 @@ function renderUnlock() {
 
 // ───────────────────────── основной экран ─────────────────────────
 function renderApp() {
+  S.animate = true;
   root.replaceChildren(h('div', { class: 'shell' },
     h('aside', { class: 'side' },
       h('div', { class: 'brand' }, h('span', { class: 'mark' }, icon('lock', 14)), h('span', { class: 'brand-name' }, 'Vaultboard')),
@@ -218,6 +230,7 @@ function itemsInSpace(spaceId) {
 }
 
 function renderTabs() {
+  applyPalette();
   const el = $('#tabs'); el.replaceChildren();
   for (const sp of liveSpaces(S.data)) {
     const active = sp.id === S.spaceId;
@@ -241,6 +254,7 @@ function renderTabs() {
 async function selectSpace(id) {
   S.spaceId = id; S.tag = null;
   S.ui.lastSpace = id; st.setUi({ lastSpace: id });
+  S.animate = true;
   renderTabs(); renderFilters(); renderBoard();
 }
 
@@ -327,16 +341,20 @@ function renderBoard() {
     .sort((a, b) => (global ? spaces.get(a.spaceId).order - spaces.get(b.spaceId).order : 0) || a.order - b.order);
   const items = liveItems(S.data);
   board.replaceChildren();
-  let shown = 0;
+  board.classList.toggle('enter', !!S.animate); S.animate = false;
+  let shown = 0, gi = 0, ii = 0;
   for (const g of groups) {
     let list = items.filter((i) => i.groupId === g.id).sort((a, b) => a.order - b.order);
     list = list.filter((i) => matches(i, terms) && (S.type === 'all' || (S.type === 'fav' ? i.favorite : i.type === S.type)) && (!S.tag || (i.tags || []).includes(S.tag)));
     if (filtering && !list.length) continue;
     shown += list.length;
-    board.append(groupCard(g, list, global ? spaces.get(g.spaceId).name : null, filtering));
+    const card = groupCard(g, list, global ? spaces.get(g.spaceId).name : null, filtering);
+    card.style.setProperty('--gi', String(Math.min(gi++, 8)));
+    card.querySelectorAll('.item').forEach((el) => el.style.setProperty('--ii', String(Math.min(ii++, 14))));
+    board.append(card);
   }
   if (!board.children.length) board.append(emptyState(global, groups.length === 0 && !filtering));
-  else if (!filtering) board.append(h('button', { class: 'group-add', onclick: () => groupDialog() }, icon('plus', 16), 'Новая группа'));
+  else if (!filtering) board.append(h('button', { class: 'group-add', style: { '--gi': String(Math.min(gi, 8)) }, onclick: () => groupDialog() }, icon('plus', 16), 'Новая группа'));
 }
 
 function emptyState(global, noGroups) {
@@ -394,6 +412,9 @@ function itemRow(i) {
     fav = img;
   }
   const sub = i.type === 'login' ? i.username : i.type === 'link' ? hostOf(i.url) : (i.notes || '').split('\n')[0];
+  const qv = i.type === 'login' ? i.password : i.type === 'link' ? normalizeUrl(i.url) : (i.notes || '');
+  const quick = qv ? h('button', { class: 'quick', title: i.type === 'login' ? 'Скопировать пароль' : i.type === 'link' ? 'Скопировать адрес' : 'Скопировать текст', 'aria-label': 'Быстро скопировать',
+    onclick: (e) => { e.stopPropagation(); copy(qv, i.type === 'login' ? 'Пароль скопирован' : i.type === 'link' ? 'Адрес скопирован' : 'Текст скопирован', i.type === 'login'); quick.classList.add('done'); quick.replaceChildren(icon('check', 16)); setTimeout(() => { quick.classList.remove('done'); quick.replaceChildren(icon('copy', 16)); }, 1300); } }, icon('copy', 16)) : null;
   const row = h('div', { class: 'item ' + i.type, dataset: { id: i.id }, draggable: true, tabindex: '0', role: 'button', 'aria-label': `${TYPE_LABEL[i.type]}: ${i.title}`,
     onclick: () => activate(i),
     onkeydown: (e) => { if (e.key === 'Enter') activate(i); },
@@ -402,6 +423,7 @@ function itemRow(i) {
     fav,
     h('span', { class: 'ititle' }, i.title || hostOf(i.url) || '(без названия)'),
     sub ? h('span', { class: 'isub' }, sub) : null,
+    quick,
     h('span', { class: 'iacts' },
       i.type === 'login' && i.username ? act('user', 'Скопировать логин', () => copy(i.username, 'Логин скопирован')) : null,
       i.type === 'login' && i.password ? act('copy', 'Скопировать пароль', () => copy(i.password, 'Пароль скопирован', true)) : null,
@@ -824,16 +846,22 @@ function askNewPassword(data, auth) {
 
 // ───────────────────────── настройки, импорт, экспорт ─────────────────────────
 function openSettings() {
-  const lock = h('select', {}, [[0, 'Не блокировать'], [5, '5 минут'], [15, '15 минут'], [30, '30 минут'], [60, '1 час'], [240, '4 часа']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.autolockMin }, l)));
+  const lockOn = h('input', { type: 'checkbox', checked: S.prefs.autolockMin > 0 });
+  const lockMin = h('input', { type: 'number', min: '1', max: '1440', step: '1', class: 'num', 'aria-label': 'Минут до блокировки', value: String(S.prefs.autolockMin > 0 ? S.prefs.autolockMin : (S.prefs.autolockLast || 15)) });
+  const syncLock = () => { lockMin.disabled = !lockOn.checked; lockRow.classList.toggle('off', !lockOn.checked); };
+  const lockRow = h('div', { class: 'lockrow' }, lockMin, h('span', {}, 'мин'),
+    ...[1, 5, 15, 30, 60, 240].map((v) => h('button', { type: 'button', class: 'chip', onclick: () => { lockMin.value = String(v); lockOn.checked = true; syncLock(); } }, v >= 60 ? v / 60 + ' ч' : v + ' мин')));
+  lockOn.addEventListener('change', syncLock); syncLock();
+  const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
   const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
-  const theme = h('select', {}, [['pearl', 'Жемчуг (светлая, 3D)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
+  const theme = h('select', {}, [['pearl', 'Жемчуг (цвет меняется по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
   const m = modal({ title: 'Настройки',
-    body: [h('label', { class: 'field' }, h('span', {}, 'Блокировать после бездействия'), lock),
+    body: [h('div', { class: 'field' }, h('label', { class: 'inline check' }, lockOn, 'Блокировать при бездействии'), lockRow),
       h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
       h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
-      h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера.')],
+      h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.')],
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: async () => {
-      await st.setPrefs({ autolockMin: Number(lock.value), clipClearSec: Number(clip.value), scene: theme.value });
+      await st.setPrefs({ autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value });
       S.prefs = await st.getPrefs(); applyTheme(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
     } }, 'Сохранить')] });
 }
@@ -937,6 +965,25 @@ for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () =>
     });
   }, { passive: true });
   document.addEventListener('pointerleave', () => cur && reset(cur), true);
+}
+
+// Параллакс сфер: мягко следуют за курсором с разной скоростью (дальняя медленнее) и чуть меняют масштаб
+{
+  const orbs = document.querySelector('.orbs');
+  if (orbs && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    let tx = 0, ty = 0, x = 0, y = 0, raf = 0;
+    const tick = () => {
+      x += (tx - x) * 0.07; y += (ty - y) * 0.07;
+      orbs.style.setProperty('--px', x.toFixed(3)); orbs.style.setProperty('--py', y.toFixed(3));
+      orbs.style.setProperty('--pd', Math.min(1, Math.hypot(x, y)).toFixed(3));
+      raf = Math.abs(tx - x) + Math.abs(ty - y) > 0.002 ? requestAnimationFrame(tick) : 0;
+    };
+    document.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      tx = (e.clientX / innerWidth - 0.5) * 2; ty = (e.clientY / innerHeight - 0.5) * 2;
+      if (!raf) raf = requestAnimationFrame(tick);
+    }, { passive: true });
+  }
 }
 
 boot();
