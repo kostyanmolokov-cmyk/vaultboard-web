@@ -546,5 +546,6 @@ html[data-look='pearl'] .fav.letter, html[data-look='glass'] .fav.letter { backg
 }
 @media (max-width: 860px) { html[data-look] .shell { grid-auto-rows: max-content; align-content: start; } .side { align-self: start; } }
 
-.rkbox { font-family: var(--mono); font-size: 17px; letter-spacing: .06em; line-height: 1.7; text-align: center; padding: 14px 12px; margin: 10px 0; border-radius: 14px; background: var(--accent-soft); color: var(--ink); user-select: all; word-break: break-all; }
+.rkbox { white-space: pre; font-family: var(--mono); font-size: 17px; letter-spacing: .06em; line-height: 1.7; text-align: center; padding: 14px 12px; margin: 10px 0; border-radius: 14px; background: var(--accent-soft); color: var(--ink); user-select: all; word-break: break-all; }
 .forgot .field, .mbody .field + .field { margin-top: 10px; }
+.steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 8px; } .steps li { line-height: 1.45; }

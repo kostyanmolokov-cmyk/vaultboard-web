@@ -490,9 +490,10 @@ function mainMenu(anchor) {
     { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
     { label: 'Настройки', icon: 'sliders', onClick: openSettings },
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
+    IS_WEB ? { label: 'Скачать расширение для Chrome', icon: 'download', onClick: openExtDownload } : null,
     '-',
     { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
-  ]);
+  ].filter(Boolean));
 }
 
 async function lockNow() { await send({ cmd: 'lock' }); await st.clearSessionKey(); S.key = null; S.data = null; renderUnlock(); }
@@ -741,6 +742,20 @@ function describeSyncError(e) {
   return msg || 'Неизвестная ошибка синхронизации';
 }
 
+// ───────────────────────── скачать расширение (только веб) ─────────────────────────
+function openExtDownload() {
+  const dl = h('a', { class: 'btn primary', href: 'vaultboard-extension.zip', download: 'vaultboard-extension.zip' }, icon('download', 16), 'Скачать расширение (.zip)');
+  const m = modal({ title: 'Расширение для Chrome',
+    body: [h('p', { class: 'lead' }, 'Расширение открывает сайт и подставляет логин и пароль одним кликом. Это самая свежая версия: после каждого обновления сайта здесь лежит новый архив. Ставится на компьютере, на телефоне Chrome расширения не поддерживает.'),
+      dl,
+      h('ol', { class: 'bullets steps' },
+        h('li', {}, 'Распакуйте архив в постоянную папку и не удаляйте её. При обновлении распакуйте новый архив поверх старого.'),
+        h('li', {}, 'Откройте в Chrome адрес chrome://extensions и включите «Режим разработчика».'),
+        h('li', {}, 'Нажмите «Загрузить распакованное расширение» и выберите папку. Если расширение уже стоит, нажмите на нём значок обновления.'),
+        h('li', {}, 'Хранилище и синхронизация не пропадут: вход через Google и мастер-пароль те же.'))],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
+}
+
 // ───────────────────────── восстановление доступа ─────────────────────────
 function showRecoveryKey(rk, intro) {
   const ok = h('input', { type: 'checkbox' });
@@ -748,7 +763,7 @@ function showRecoveryKey(rk, intro) {
   ok.addEventListener('change', () => { done.disabled = !ok.checked; });
   const m = modal({ title: 'Ключ восстановления',
     body: [h('p', { class: 'lead' }, intro || 'Если забудете мастер-пароль, этот ключ поможет задать новый. Сохраните его в надёжном месте: в другом менеджере паролей, на бумаге или в личных заметках. Показывается один раз.'),
-      h('div', { class: 'rkbox' }, rk),
+      h('div', { class: 'rkbox' }, rk.split('-').slice(0, 4).join('-') + '\n' + rk.split('-').slice(4).join('-')),
       h('div', { class: 'row' },
         h('button', { class: 'btn', onclick: () => copy(rk, 'Ключ скопирован') }, icon('copy', 15), 'Копировать'),
         h('button', { class: 'btn', onclick: () => download('vaultboard-recovery-key.txt', `Vaultboard. Ключ восстановления\n${rk}\n\nХраните отдельно от мастер-пароля.\n`, 'text/plain') }, icon('download', 15), 'Скачать файлом')),
