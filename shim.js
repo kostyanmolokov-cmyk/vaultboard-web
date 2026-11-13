@@ -1,6 +1,8 @@
 // Подмена chrome.* для веб-версии: хранилище в браузере, автоблокировка на странице.
 (() => {
   if (globalThis.chrome?.runtime?.id) return;
+  const realRuntime = globalThis.chrome?.runtime; // настоящий chrome.runtime есть у страницы, если расширение разрешило с ней связь
+  globalThis.__vbRealSend = realRuntime && typeof realRuntime.sendMessage === 'function' ? realRuntime.sendMessage.bind(realRuntime) : null;
   const listeners = [];
   const fire = (ch, area) => listeners.forEach((f) => { try { f(ch, area); } catch (e) { console.error(e); } });
   const area = (store, prefix, name) => {
@@ -34,7 +36,7 @@
     const keys = ['envelope', 'sync'];
     const before = await local.get(keys);
     let result, error;
-    try { result = await (await import('./lib/sync.js?v=1794607854')).syncNow(); } catch (e) { error = e; }
+    try { result = await (await import('./lib/sync.js?v=1794608321')).syncNow(); } catch (e) { error = e; }
     const after = await local.get(keys);
     const ch = {};
     for (const k of keys) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) ch[k] = { oldValue: before[k], newValue: after[k] };

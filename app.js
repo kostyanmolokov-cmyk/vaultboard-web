@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607854';
-import * as fb from './lib/firebase.js?v=1794607854';
-import * as st from './lib/store.js?v=1794607854';
-import * as sync from './lib/sync.js?v=1794607854';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607854';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607854';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607854';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607854';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794608321';
+import * as fb from './lib/firebase.js?v=1794608321';
+import * as st from './lib/store.js?v=1794608321';
+import * as sync from './lib/sync.js?v=1794608321';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794608321';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794608321';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794608321';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794608321';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.7.0' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.8.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -468,7 +468,13 @@ async function activate(i) {
   const url = normalizeUrl(i.url);
   if (!url) return openItemEditor(i, false);
   if (i.type === 'link') { if (IS_WEB) window.open(url, '_blank', 'noopener'); else chrome.tabs.create({ url }); return; }
-  if (IS_WEB) { // в вебе автозаполнения нет: копируем пароль и открываем сайт
+  if (IS_WEB) { // страница сама подставить пароль на чужой сайт не может: просим об этом расширение, если оно есть
+    const r = await askExtension({ cmd: 'fillOpen', url, username: i.username || '', password: i.password || '', autoSubmit: !!i.autoSubmit });
+    if (r?.ok && r.filled) return toast('Сайт открыт, логин и пароль подставятся сами');
+    if (r?.ok) { // расширение открыло сайт, но у него нет доступа к этому сайту
+      if (i.password) await copy(i.password, i.username ? `Пароль скопирован. Логин: ${i.username}` : 'Пароль скопирован', true);
+      return toast('Откройте расширение Vaultboard и нажмите «Разрешить» — тогда пароли будут подставляться сами', 'warn');
+    }
     if (i.password) await copy(i.password, i.username ? `Пароль скопирован. Логин: ${i.username}` : 'Пароль скопирован', true);
     window.open(url, '_blank', 'noopener'); return;
   }
@@ -479,6 +485,16 @@ async function activate(i) {
   if (!ok) { chrome.tabs.create({ url }); return toast('Сайт открыт без автозаполнения: нет разрешения на этот сайт', 'warn'); }
   const r = await send({ cmd: 'launch', itemId: i.id });
   if (!r?.ok) toast(r?.error || 'Не удалось открыть сайт', 'warn');
+}
+
+const EXT_ID = 'eikfacgkflahhdghibgdlohfjkikjejk';
+function askExtension(msg) { // ответ расширения или null, если его нет / оно старое
+  return new Promise((resolve) => {
+    const send = globalThis.__vbRealSend;
+    if (!send) return resolve(null);
+    const t = setTimeout(() => resolve(null), 2500);
+    try { send(EXT_ID, msg, (r) => { clearTimeout(t); void chrome.runtime?.lastError; resolve(r || null); }); } catch { clearTimeout(t); resolve(null); }
+  });
 }
 
 let clipTimer = null;
