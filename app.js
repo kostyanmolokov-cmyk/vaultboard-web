@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606959';
-import * as fb from './lib/firebase.js?v=1794606959';
-import * as st from './lib/store.js?v=1794606959';
-import * as sync from './lib/sync.js?v=1794606959';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606959';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606959';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606959';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606959';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607068';
+import * as fb from './lib/firebase.js?v=1794607068';
+import * as st from './lib/store.js?v=1794607068';
+import * as sync from './lib/sync.js?v=1794607068';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607068';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607068';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607068';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607068';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -413,7 +413,7 @@ function itemRow(i) {
       const src = IS_WEB ? `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent('https://' + host)}&size=64` : faviconUrl(normalizeUrl(i.url));
       const img = h('img', { class: 'fav fav-img', alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', src });
       img.addEventListener('error', () => img.replaceWith(letter));
-      img.addEventListener('load', () => { if (img.naturalWidth <= 16) img.replaceWith(letter); // 16 px у Google = заглушка-глобус });
+      img.addEventListener('load', () => { if (img.naturalWidth <= 16) img.replaceWith(letter); }); // 16 px у Google = заглушка-глобус
       fav = img;
     }
   }
