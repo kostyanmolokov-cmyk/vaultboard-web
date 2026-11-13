@@ -34,7 +34,7 @@
     const keys = ['envelope', 'sync'];
     const before = await local.get(keys);
     let result, error;
-    try { result = await (await import('./lib/sync.js')).syncNow(); } catch (e) { error = e; }
+    try { result = await (await import('./lib/sync.js?v=1794606061')).syncNow(); } catch (e) { error = e; }
     const after = await local.get(keys);
     const ch = {};
     for (const k of keys) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) ch[k] = { oldValue: before[k], newValue: after[k] };

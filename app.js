@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js';
-import * as fb from './lib/firebase.js';
-import * as st from './lib/store.js';
-import * as sync from './lib/sync.js';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606061';
+import * as fb from './lib/firebase.js?v=1794606061';
+import * as st from './lib/store.js?v=1794606061';
+import * as sync from './lib/sync.js?v=1794606061';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606061';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606061';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606061';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606061';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
