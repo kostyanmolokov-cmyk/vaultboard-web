@@ -1,20 +1,21 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607633';
-import * as fb from './lib/firebase.js?v=1794607633';
-import * as st from './lib/store.js?v=1794607633';
-import * as sync from './lib/sync.js?v=1794607633';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607633';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607633';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607633';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607633';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607854';
+import * as fb from './lib/firebase.js?v=1794607854';
+import * as st from './lib/store.js?v=1794607854';
+import * as sync from './lib/sync.js?v=1794607854';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607854';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607854';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607854';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607854';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
 const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 
+const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.6.1' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.7.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -333,6 +334,20 @@ function matches(i, terms) {
   return terms.every((t) => hay.includes(t));
 }
 
+async function autofillBanner(board) {
+  if (S.prefs.autofill === false) return;
+  let has = false;
+  try { has = await chrome.permissions.contains({ origins: ALL_SITES }); } catch { return; }
+  if (has || !board.isConnected || board.querySelector('.afbanner')) return;
+  board.prepend(h('div', { class: 'afbanner' },
+    h('span', {}, 'Чтобы логин и пароль подставлялись при открытии любого сайта, разрешите расширению доступ к сайтам.'),
+    h('button', { class: 'btn primary', onclick: async (e) => {
+      let ok = false;
+      try { ok = await chrome.permissions.request({ origins: ALL_SITES }); } catch { ok = false; }
+      if (ok) { e.target.closest('.afbanner').remove(); toast('Автозаполнение включено на всех сайтах'); } else toast('Доступ не выдан', 'warn');
+    } }, 'Разрешить')));
+}
+
 function renderBoard() {
   const board = $('#board'); if (!board) return;
   const terms = lc(S.q).split(/\s+/).filter(Boolean);
@@ -343,6 +358,7 @@ function renderBoard() {
     .sort((a, b) => (global ? spaces.get(a.spaceId).order - spaces.get(b.spaceId).order : 0) || a.order - b.order);
   const items = liveItems(S.data);
   board.replaceChildren();
+  if (!IS_WEB) autofillBanner(board);
   board.classList.toggle('enter', !!S.animate); S.animate = false;
   let shown = 0, gi = 0, ii = 0;
   for (const g of groups) {
@@ -883,15 +899,22 @@ function openSettings() {
   const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
   const theme = h('select', {}, [['pearl', 'Жемчуг (цвет меняется по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
   const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
+  const autoOn = h('input', { type: 'checkbox', checked: S.prefs.autofill !== false });
   const m = modal({ title: 'Настройки',
     body: [h('div', { class: 'field' }, h('label', { class: 'inline check' }, lockOn, 'Блокировать при бездействии'), lockRow),
       h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
       h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
+      IS_WEB ? null : h('label', { class: 'inline check' }, autoOn, 'Автоматически подставлять логин и пароль на любых сайтах из хранилища'),
       IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
       h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.'),
       h('p', { class: 'hint' }, IS_WEB ? `Веб-версия. Актуальная версия расширения: ${EXT_VERSION}.` : `Установлена версия расширения: ${EXT_VERSION}.`)],
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: async () => {
-      await st.setPrefs({ autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked });
+      let afOk = true;
+      if (!IS_WEB && autoOn.checked) { // запрос разрешения должен идти прямо из клика
+        try { afOk = await chrome.permissions.request({ origins: ALL_SITES }); } catch { afOk = false; }
+        if (!afOk) toast('Без доступа ко всем сайтам автозаполнение при открытии не заработает', 'warn');
+      }
+      await st.setPrefs({ autofill: autoOn.checked, autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked });
       S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
     } }, 'Сохранить')] });
 }
