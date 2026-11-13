@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606061';
-import * as fb from './lib/firebase.js?v=1794606061';
-import * as st from './lib/store.js?v=1794606061';
-import * as sync from './lib/sync.js?v=1794606061';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606061';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606061';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606061';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606061';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606155';
+import * as fb from './lib/firebase.js?v=1794606155';
+import * as st from './lib/store.js?v=1794606155';
+import * as sync from './lib/sync.js?v=1794606155';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606155';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606155';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606155';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606155';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -719,6 +719,10 @@ function openSyncDialog() {
         S.data = await st.readData(S.key, await st.loadEnvelope()); S.env = await st.loadEnvelope(); renderAll(); await draw();
       } }, icon('sync', 16), 'Синхронизировать сейчас');
       row.append(now);
+      if (/SALT_MISMATCH/.test(s.lastError || '')) row.append(h('button', { class: 'btn primary', onclick: async () => {
+        if (!(await confirmBox('Хранилище на этом устройстве будет стёрто, а вместо него откроется то, что лежит в облаке (нужен его мастер-пароль). Продолжить?', 'Открыть облачное', false))) return;
+        m.close(); await st.wipeAll(); S.key = null; S.data = null; S.env = null; renderSetup('cloud');
+      } }, 'Открыть облачное хранилище'));
       if (/SALT_MISMATCH/.test(s.lastError || '')) row.append(h('button', { class: 'btn danger', onclick: async () => {
         if (!(await confirmBox('В облаке лежит хранилище с другим мастер-паролем. Заменить его текущим? Другие устройства потребуют заново войти и ввести новый пароль.', 'Заменить облачную копию', true))) return;
         try { await sync.overwriteCloud(); toast('Облачная копия заменена'); } catch (e) { toast(describeSyncError(e), 'warn'); }
