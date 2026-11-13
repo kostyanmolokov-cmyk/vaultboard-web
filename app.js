@@ -1,18 +1,20 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607068';
-import * as fb from './lib/firebase.js?v=1794607068';
-import * as st from './lib/store.js?v=1794607068';
-import * as sync from './lib/sync.js?v=1794607068';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607068';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607068';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607068';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607068';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607204';
+import * as fb from './lib/firebase.js?v=1794607204';
+import * as st from './lib/store.js?v=1794607204';
+import * as sync from './lib/sync.js?v=1794607204';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607204';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607204';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607204';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607204';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
 const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
+// версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
+const EXT_VERSION = IS_WEB ? '1.5.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -518,7 +520,7 @@ function mainMenu(anchor) {
     { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
     { label: 'Настройки', icon: 'sliders', onClick: openSettings },
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
-    IS_WEB ? { label: 'Скачать расширение для Chrome', icon: 'download', onClick: openExtDownload } : null,
+    IS_WEB ? { label: `Скачать расширение для Chrome (v${EXT_VERSION})`, icon: 'download', onClick: openExtDownload } : null,
     '-',
     { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
   ].filter(Boolean));
@@ -776,9 +778,10 @@ function describeSyncError(e) {
 
 // ───────────────────────── скачать расширение (только веб) ─────────────────────────
 function openExtDownload() {
-  const dl = h('a', { class: 'btn primary', href: 'vaultboard-extension.zip', download: 'vaultboard-extension.zip' }, icon('download', 16), 'Скачать расширение (.zip)');
+  const dl = h('a', { class: 'btn primary', href: 'vaultboard-extension.zip', download: `vaultboard-extension-v${EXT_VERSION}.zip` }, icon('download', 16), `Скачать версию ${EXT_VERSION} (.zip)`);
   const m = modal({ title: 'Расширение для Chrome',
-    body: [h('p', { class: 'lead' }, 'Расширение открывает сайт и подставляет логин и пароль одним кликом. Это самая свежая версия: после каждого обновления сайта здесь лежит новый архив. Ставится на компьютере, на телефоне Chrome расширения не поддерживает.'),
+    body: [h('p', { class: 'lead' }, `Расширение открывает сайт и подставляет логин и пароль одним кликом. Здесь всегда самая свежая версия: сейчас ${EXT_VERSION}. Ставится на компьютере, на телефоне Chrome расширения не поддерживает.`),
+      h('p', { class: 'hint' }, 'Какая версия уже стоит у вас, видно в расширении: меню → «Настройки», внизу. Если число меньше, обновите.'),
       dl,
       h('ol', { class: 'bullets steps' },
         h('li', {}, 'Распакуйте архив в постоянную папку и не удаляйте её. При обновлении распакуйте новый архив поверх старого.'),
@@ -867,7 +870,8 @@ function openSettings() {
       h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
       h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
       IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
-      h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.')],
+      h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.'),
+      h('p', { class: 'hint' }, IS_WEB ? `Веб-версия. Актуальная версия расширения: ${EXT_VERSION}.` : `Установлена версия расширения: ${EXT_VERSION}.`)],
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: async () => {
       await st.setPrefs({ autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked });
       S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
