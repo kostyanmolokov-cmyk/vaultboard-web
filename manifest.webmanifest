@@ -1,0 +1,1 @@
+{"name": "Vaultboard", "short_name": "Vaultboard", "description": "Пароли, ссылки и заметки по группам", "start_url": ".", "scope": ".", "display": "standalone", "background_color": "#f4f1fd", "theme_color": "#f4f1fd", "lang": "ru", "icons": [{"src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]}

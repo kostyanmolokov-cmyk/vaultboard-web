@@ -1,0 +1,859 @@
+// Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
+import { deriveKey, randomBytes, b64, DEFAULT_ITER } from './lib/crypto.js';
+import * as st from './lib/store.js';
+import * as sync from './lib/sync.js';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js';
+
+const $ = (s, r = document) => r.querySelector(s);
+const root = document.getElementById('root');
+const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
+
+const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
+const S = {
+  env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
+  spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
+};
+const TYPE_LABEL = { login: 'Логин', link: 'Ссылка', note: 'Заметка' };
+const TYPE_ICON = { login: 'key', link: 'link', note: 'note' };
+
+// ───────────────────────── запуск ─────────────────────────
+async function boot() {
+  S.prefs = await st.getPrefs();
+  S.ui = await st.getUi();
+  applyTheme();
+  S.env = await st.loadEnvelope();
+  if (!S.env) return renderSetup();
+  const key = await st.getSessionKey();
+  if (!key) return renderUnlock();
+  try { await enter(key); } catch { await st.clearSessionKey(); renderUnlock(); }
+}
+
+function applyTheme() {
+  const sc = S.prefs.scene || 'pearl', d = document.documentElement.dataset;
+  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
+}
+
+async function enter(key) {
+  S.key = key;
+  S.data = await st.readData(key, S.env);
+  S.sync = await st.getSyncState();
+  const spaces = liveSpaces(S.data);
+  S.spaceId = spaces.find((s) => s.id === S.ui.lastSpace)?.id || spaces[0]?.id || null;
+  renderApp();
+  send({ cmd: 'touch' });
+  if (S.sync.enabled) send({ cmd: 'syncSoon' });
+}
+
+chrome.storage.onChanged.addListener(async (ch, area) => {
+  if (area === 'local' && ch.envelope?.newValue && S.key && ch.envelope.newValue.iv !== S.env?.iv) {
+    S.env = ch.envelope.newValue;
+    if (document.querySelector('.scrim')) { S.reloadPending = true; return; }
+    try { S.data = await st.readData(S.key, S.env); renderAll(); } catch { /* ключ сменился */ }
+  }
+  if (area === 'local' && ch.sync) { S.sync = await st.getSyncState(); if ($('#sync-btn')) renderSyncBadge(); }
+  if (area === 'session' && ch.key && !ch.key.newValue && S.key) { S.key = null; S.data = null; renderUnlock(); }
+});
+
+// ───────────────────────── сохранение ─────────────────────────
+async function commit() {
+  const cur = await st.loadEnvelope();
+  if (cur && cur.iv !== S.env.iv) {
+    // пока мы редактировали, фон успел синхронизировать — сначала сливаем
+    const remote = await st.readData(S.key, cur);
+    S.data = mergeData(S.data, remote).data;
+    S.env = cur;
+  }
+  S.env = await st.writeData(S.key, S.env, S.data);
+  send({ cmd: 'syncSoon' });
+}
+const stamp = (o) => { o.updatedAt = Date.now(); return o; };
+
+// ───────────────────────── экран создания / восстановления ─────────────────────────
+function shell(content) {
+  root.replaceChildren(h('main', { class: 'gate' },
+    h('div', { class: 'gate-card' },
+      vaultArt(112),
+      h('div', { class: 'brand big' }, h('span', { class: 'mark' }, icon('lock', 20)), h('span', { class: 'brand-name' }, 'Vaultboard')),
+      content)));
+}
+
+function pwField(label, id, opts = {}) {
+  return h('label', { class: 'field' }, h('span', {}, label),
+    h('input', { id, type: 'password', autocomplete: opts.autocomplete || 'off', placeholder: opts.placeholder || '', autofocus: opts.autofocus }));
+}
+
+function renderSetup(mode = 'new') {
+  const tabs = h('div', { class: 'seg' },
+    h('button', { class: mode === 'new' ? 'on' : '', onclick: () => renderSetup('new') }, 'Новое хранилище'),
+    IS_WEB ? null : h('button', { class: mode === 'cloud' ? 'on' : '', onclick: () => renderSetup('cloud') }, 'Уже есть в Google'));
+  const msg = h('p', { class: 'form-msg', role: 'alert' });
+  let form;
+  if (mode === 'new') {
+    const btn = h('button', { class: 'btn primary wide', type: 'submit' }, 'Создать хранилище');
+    form = h('form', { class: 'gate-form', onsubmit: async (e) => {
+      e.preventDefault();
+      const p1 = $('#pw1').value, p2 = $('#pw2').value;
+      if (p1.length < 8) return (msg.textContent = 'Мастер-пароль должен быть не короче 8 символов.');
+      if (p1 !== p2) return (msg.textContent = 'Пароли не совпадают.');
+      btn.disabled = true; btn.textContent = 'Создаю…'; msg.textContent = '';
+      const salt = b64.to(randomBytes(16));
+      const key = await deriveKey(p1, salt, DEFAULT_ITER);
+      S.env = await st.writeData(key, { v: 1, kdf: 'PBKDF2-SHA256', iter: DEFAULT_ITER, salt }, emptyData());
+      await st.setSessionKey(key);
+      await enter(key);
+      toast('Хранилище создано');
+    } },
+      h('p', { class: 'lead' }, 'Всё шифруется мастер-паролем на этом устройстве. Восстановить его нельзя, поэтому запомните или сохраните в надёжном месте.'),
+      pwField('Мастер-пароль', 'pw1', { autofocus: true, autocomplete: 'new-password' }),
+      pwField('Повторите пароль', 'pw2', { autocomplete: 'new-password' }),
+      msg, btn);
+  } else {
+    let stage = h('div');
+    const startBtn = h('button', { class: 'btn primary wide', type: 'button', onclick: async () => {
+      startBtn.disabled = true; startBtn.textContent = 'Открываю вход Google…'; msg.textContent = '';
+      try {
+        const r = await sync.cloudHasVault();
+        if (!r.exists) { msg.textContent = `В облаке для ${r.email} пока нет хранилища. Создайте новое и включите синхронизацию в меню.`; startBtn.disabled = false; startBtn.textContent = 'Войти через Google'; return; }
+        const btn2 = h('button', { class: 'btn primary wide', type: 'submit' }, 'Расшифровать и открыть');
+        stage.replaceChildren(h('form', { class: 'gate-form', onsubmit: async (e) => {
+          e.preventDefault();
+          btn2.disabled = true; btn2.textContent = 'Расшифровываю…'; msg.textContent = '';
+          try {
+            const res = await sync.restoreFromCloud($('#pwc').value);
+            S.env = res.env;
+            await enter(res.key);
+            toast('Хранилище загружено из облака');
+          } catch (er) {
+            msg.textContent = er.code === 'WRONG_PASSWORD' ? 'Неверный мастер-пароль.' : 'Не удалось загрузить: ' + er.message;
+            btn2.disabled = false; btn2.textContent = 'Расшифровать и открыть';
+          }
+        } }, h('p', { class: 'lead' }, `Вы вошли как ${r.email}. Введите мастер-пароль этого хранилища.`), pwField('Мастер-пароль', 'pwc', { autofocus: true }), btn2));
+        startBtn.remove();
+        $('#pwc')?.focus();
+      } catch (er) {
+        msg.textContent = 'Вход не удался: ' + er.message;
+        startBtn.disabled = false; startBtn.textContent = 'Войти через Google';
+      }
+    } }, 'Войти через Google');
+    form = h('div', { class: 'gate-form' },
+      h('p', { class: 'lead' }, 'Войдите тем же аккаунтом Google, которым пользуетесь на другом устройстве. Данные придут зашифрованными, пароль понадобится только для расшифровки.'),
+      startBtn, stage, msg);
+  }
+  shell([IS_WEB ? null : tabs, form]);
+}
+
+function renderUnlock() {
+  const msg = h('p', { class: 'form-msg', role: 'alert' });
+  const btn = h('button', { class: 'btn primary wide', type: 'submit' }, 'Открыть');
+  shell(h('form', { class: 'gate-form', onsubmit: async (e) => {
+    e.preventDefault();
+    btn.disabled = true; btn.textContent = 'Проверяю…'; msg.textContent = '';
+    try {
+      const key = await deriveKey($('#pwu').value, S.env.salt, S.env.iter);
+      await st.readData(key, S.env); // бросит ошибку при неверном пароле
+      await st.setSessionKey(key);
+      await enter(key);
+    } catch {
+      msg.textContent = 'Неверный мастер-пароль.';
+      btn.disabled = false; btn.textContent = 'Открыть';
+      $('#pwu').select();
+    }
+  } },
+    h('p', { class: 'lead' }, 'Хранилище заблокировано.'),
+    pwField('Мастер-пароль', 'pwu', { autofocus: true }),
+    msg, btn,
+    h('button', { class: 'link-btn', type: 'button', onclick: async () => {
+      if (await confirmBox('Это удалит хранилище с этого устройства. Копия в облаке (если синхронизация была включена) останется. Продолжить?', 'Стереть на этом устройстве')) {
+        await st.wipeAll(); S.env = null; renderSetup();
+      }
+    } }, 'Забыли пароль?')));
+}
+
+// ───────────────────────── основной экран ─────────────────────────
+function renderApp() {
+  root.replaceChildren(h('div', { class: 'shell' },
+    h('aside', { class: 'side' },
+      h('div', { class: 'brand' }, h('span', { class: 'mark' }, icon('lock', 14)), h('span', { class: 'brand-name' }, 'Vaultboard')),
+      h('div', { class: 'side-label' }, 'Пространства'),
+      h('nav', { id: 'tabs', class: 'tabs', role: 'tablist' }),
+      h('div', { id: 'filters', class: 'filters' }),
+      h('div', { class: 'side-foot' },
+        h('button', { class: 'frow', id: 'sync-btn', title: 'Синхронизация', onclick: openSyncDialog }, icon('cloud', 15), h('span', { class: 'flabel' }, 'Синхронизация'), h('i', { class: 'dot' })),
+        h('button', { class: 'frow', title: 'Импорт, экспорт, настройки', onclick: (e) => mainMenu(e.currentTarget) }, icon('sliders', 15), h('span', { class: 'flabel' }, 'Меню')),
+        h('button', { class: 'frow', title: 'Заблокировать', onclick: lockNow }, icon('lock', 15), h('span', { class: 'flabel' }, 'Заблокировать')))),
+    h('section', { class: 'main' },
+      h('header', { class: 'top' },
+        h('label', { class: 'search' }, icon('search', 15),
+          h('input', { id: 'q', type: 'search', placeholder: 'Поиск по всем записям', autocomplete: 'off', 'aria-label': 'Поиск', oninput: (e) => { S.q = e.target.value; renderBoard(); renderFilters(); },
+            onkeydown: (e) => {
+              if (e.key === 'Escape') { e.target.value = ''; S.q = ''; renderBoard(); renderFilters(); e.target.blur(); }
+              if (e.key === 'Enter') { const first = $('.item'); if (first) activateById(first.dataset.id); }
+            } }), h('kbd', {}, '/')),
+        h('div', { class: 'actions' },
+          h('button', { class: 'btn primary', id: 'add-btn', onclick: (e) => addMenu(e.currentTarget) }, icon('plus', 15), 'Добавить'))),
+      h('div', { class: 'hero' }, h('h1', { id: 'crumb' }), h('p', { id: 'hsub' })),
+      h('main', { id: 'board', class: 'board' }))));
+  renderAll();
+}
+
+function renderAll() { renderTabs(); renderFilters(); renderBoard(); renderSyncBadge(); }
+
+function renderSyncBadge() {
+  const b = $('#sync-btn'); if (!b) return;
+  const s = S.sync || {};
+  b.dataset.state = !s.enabled ? 'off' : s.lastError ? 'error' : 'ok';
+  const t = s.lastSync ? new Date(s.lastSync).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+  b.title = !s.enabled ? 'Синхронизация выключена' : s.lastError ? 'Ошибка синхронизации' : 'Синхронизировано ' + t;
+  const lab = b.querySelector('.flabel'); if (lab) lab.textContent = !s.enabled ? 'Синхронизация выкл.' : s.lastError ? 'Ошибка синхронизации' : 'Синхронизировано ' + t;
+}
+
+// ───── вкладки пространств ─────
+function itemsInSpace(spaceId) {
+  const gids = new Set(liveGroups(S.data).filter((g) => g.spaceId === spaceId).map((g) => g.id));
+  return liveItems(S.data).filter((i) => gids.has(i.groupId));
+}
+
+function renderTabs() {
+  const el = $('#tabs'); el.replaceChildren();
+  for (const sp of liveSpaces(S.data)) {
+    const active = sp.id === S.spaceId;
+    const tab = h('div', { class: 'tab' + (active ? ' active' : ''), role: 'tab', tabindex: '0', 'aria-selected': String(active), dataset: { id: sp.id },
+      onclick: () => selectSpace(sp.id),
+      onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSpace(sp.id); } },
+      ondragover: (e) => { if (S.drag?.type === 'item') { e.preventDefault(); tab.classList.add('drop'); } },
+      ondragleave: () => tab.classList.remove('drop'),
+      ondrop: (e) => { e.preventDefault(); tab.classList.remove('drop'); if (S.drag?.type === 'item') moveItemToSpace(S.drag.id, sp.id); } },
+      h('span', { class: 'sico' }, h('i')),
+      h('span', { class: 'tname' }, sp.name),
+      h('span', { class: 'tcount' }, String(itemsInSpace(sp.id).length)),
+      active ? h('button', { class: 'tmore', title: 'Действия с пространством', 'aria-label': 'Действия с пространством', onclick: (e) => { e.stopPropagation(); spaceMenu(e.currentTarget, sp); } }, icon('more', 16)) : null);
+    el.append(tab);
+  }
+  el.append(h('button', { class: 'tab-add', title: 'Новое пространство', 'aria-label': 'Новое пространство', onclick: () => spaceDialog() }, icon('plus', 15), h('span', {}, 'Новое пространство')));
+  const cr = $('#crumb'); if (cr) cr.textContent = liveSpaces(S.data).find((x) => x.id === S.spaceId)?.name || '';
+  const hs = $('#hsub'); if (hs) { const ng = liveGroups(S.data).filter((g) => g.spaceId === S.spaceId).length, ni = itemsInSpace(S.spaceId).length; hs.textContent = `${plural(ni, ['запись', 'записи', 'записей'])} в ${plural(ng, ['группе', 'группах', 'группах'])}`; }
+}
+
+async function selectSpace(id) {
+  S.spaceId = id; S.tag = null;
+  S.ui.lastSpace = id; st.setUi({ lastSpace: id });
+  renderTabs(); renderFilters(); renderBoard();
+}
+
+function spaceMenu(anchor, sp) {
+  const spaces = liveSpaces(S.data);
+  const i = spaces.findIndex((s) => s.id === sp.id);
+  const swap = async (j) => {
+    const a = spaces[i], b = spaces[j];
+    [a.order, b.order] = [b.order, a.order]; stamp(a); stamp(b);
+    await commit(); renderTabs();
+  };
+  popMenu(anchor, [
+    { label: 'Переименовать', icon: 'edit', onClick: () => spaceDialog(sp) },
+    i > 0 ? { label: 'Сдвинуть влево', onClick: () => swap(i - 1) } : null,
+    i < spaces.length - 1 ? { label: 'Сдвинуть вправо', onClick: () => swap(i + 1) } : null,
+    '-',
+    { label: 'Удалить пространство', icon: 'trash', danger: true, onClick: async () => {
+      const n = itemsInSpace(sp.id).length;
+      if (spaces.length < 2) return toast('Должно остаться хотя бы одно пространство', 'warn');
+      if (!(await confirmBox(`Удалить пространство «${sp.name}» вместе с группами и записями (${n})? Отменить нельзя.`))) return;
+      for (const g of S.data.groups.filter((x) => x.spaceId === sp.id && !x.deleted)) deleteGroupRaw(g);
+      sp.deleted = true; stamp(sp);
+      await commit();
+      S.spaceId = liveSpaces(S.data)[0].id; renderAll(); toast('Пространство удалено');
+    } },
+  ].filter(Boolean));
+}
+
+function spaceDialog(sp) {
+  const input = h('input', { type: 'text', value: sp?.name || '', maxlength: '40', placeholder: 'Например, Клиенты', autofocus: true });
+  const save = async () => {
+    const name = input.value.trim(); if (!name) return;
+    if (sp) { sp.name = name; stamp(sp); }
+    else {
+      const order = Math.max(-1, ...S.data.spaces.map((s) => s.order)) + 1;
+      const ns = { id: uid(), name, order, updatedAt: Date.now() };
+      S.data.spaces.push(ns); S.spaceId = ns.id;
+    }
+    await commit(); m.close(); renderAll();
+  };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  const m = modal({ title: sp ? 'Переименовать пространство' : 'Новое пространство', body: h('label', { class: 'field' }, h('span', {}, 'Название'), input),
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: save }, sp ? 'Сохранить' : 'Создать')] });
+}
+
+// ───── фильтры ─────
+function renderFilters() {
+  const el = $('#filters'); if (!el) return;
+  el.replaceChildren();
+  const inSpace = itemsInSpace(S.spaceId);
+  const count = { all: inSpace.length, login: 0, link: 0, note: 0, fav: 0 };
+  for (const i of inSpace) { count[i.type]++; if (i.favorite) count.fav++; }
+  const types = [['all', 'Все записи', 'folder'], ['login', 'Логины', 'key'], ['link', 'Ссылки', 'link'], ['note', 'Заметки', 'note'], ['fav', 'Избранное', 'star']];
+  el.append(h('div', { class: 'side-label' }, 'Показать'));
+  for (const [v, label, ic] of types) el.append(h('button', { class: 'frow' + (S.type === v ? ' on' : ''), onclick: () => { S.type = v; renderFilters(); renderBoard(); } }, icon(ic, 15), h('span', { class: 'flabel' }, label), h('span', { class: 'fcount' }, String(count[v]))));
+  const tags = new Map();
+  for (const i of inSpace) for (const t of i.tags || []) tags.set(t, (tags.get(t) || 0) + 1);
+  const top = [...tags.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16);
+  if (top.length) {
+    el.append(h('div', { class: 'side-label' }, 'Теги'));
+    const tg = h('div', { class: 'tagwrap' });
+    for (const [t, n] of top) tg.append(h('button', { class: 'chip' + (S.tag === t ? ' on' : ''), onclick: () => { S.tag = S.tag === t ? null : t; renderFilters(); renderBoard(); } }, '#' + t, h('small', {}, String(n))));
+    el.append(tg);
+  }
+  if (S.q.trim()) el.append(h('div', { class: 'scope' }, 'Поиск идёт по всем пространствам'));
+}
+
+// ───── доска с группами ─────
+const plural = (n, f) => `${n} ${f[n % 10 === 1 && n % 100 !== 11 ? 0 : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 1 : 2]}`;
+const lc = (s) => String(s || '').toLowerCase();
+function matches(i, terms) {
+  if (!terms.length) return true;
+  const hay = lc([i.title, i.url, i.username, (i.tags || []).join(' '), i.notes].join(' '));
+  return terms.every((t) => hay.includes(t));
+}
+
+function renderBoard() {
+  const board = $('#board'); if (!board) return;
+  const terms = lc(S.q).split(/\s+/).filter(Boolean);
+  const global = terms.length > 0;
+  const filtering = global || S.tag || S.type !== 'all';
+  const spaces = new Map(liveSpaces(S.data).map((s) => [s.id, s]));
+  const groups = liveGroups(S.data).filter((g) => spaces.has(g.spaceId) && (global || g.spaceId === S.spaceId))
+    .sort((a, b) => (global ? spaces.get(a.spaceId).order - spaces.get(b.spaceId).order : 0) || a.order - b.order);
+  const items = liveItems(S.data);
+  board.replaceChildren();
+  let shown = 0;
+  for (const g of groups) {
+    let list = items.filter((i) => i.groupId === g.id).sort((a, b) => a.order - b.order);
+    list = list.filter((i) => matches(i, terms) && (S.type === 'all' || (S.type === 'fav' ? i.favorite : i.type === S.type)) && (!S.tag || (i.tags || []).includes(S.tag)));
+    if (filtering && !list.length) continue;
+    shown += list.length;
+    board.append(groupCard(g, list, global ? spaces.get(g.spaceId).name : null, filtering));
+  }
+  if (!board.children.length) board.append(emptyState(global, groups.length === 0 && !filtering));
+  else if (!filtering) board.append(h('button', { class: 'group-add', onclick: () => groupDialog() }, icon('plus', 16), 'Новая группа'));
+}
+
+function emptyState(global, noGroups) {
+  if (global) return h('div', { class: 'empty' }, vaultArt(110), h('p', { class: 'empty-title' }, 'Ничего не найдено'), h('p', {}, `По запросу «${S.q.trim()}» нет записей. Проверьте написание или очистите фильтры.`));
+  if (noGroups) return h('div', { class: 'empty' }, vaultArt(170),
+    h('p', { class: 'empty-title' }, 'В этом пространстве пока нет групп'),
+    h('p', {}, 'Создайте группу и добавьте в неё логины, ссылки и заметки. Либо импортируйте закладки или пароли из файла.'),
+    h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => groupDialog() }, icon('plus', 16), 'Создать группу'), h('button', { class: 'btn', onclick: openImport }, icon('upload', 16), 'Импортировать')));
+  return h('div', { class: 'empty' }, vaultArt(110), h('p', { class: 'empty-title' }, 'Нет записей с такими фильтрами'), h('button', { class: 'btn', onclick: () => { S.type = 'all'; S.tag = null; renderFilters(); renderBoard(); } }, 'Сбросить фильтры'));
+}
+
+function groupCard(g, list, spaceName, filtering) {
+  const collapsed = !!S.ui.collapsed?.[g.id] && !filtering;
+  const el = h('section', { class: 'group' + (collapsed ? ' collapsed' : ''), dataset: { id: g.id }, style: { '--c': g.color || GROUP_COLORS[0] },
+    ondragover: (e) => groupDragOver(e, el, g), ondragleave: () => el.classList.remove('drop-before', 'drop-after'),
+    ondrop: (e) => groupDrop(e, el, g) });
+  const grip = h('span', { class: 'grip', title: 'Перетащить группу', draggable: true,
+    ondragstart: (e) => { S.drag = { type: 'group', id: g.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', g.id); e.dataTransfer.setDragImage(el, 16, 16); el.classList.add('dragging'); },
+    ondragend: () => { S.drag = null; document.querySelectorAll('.dragging,.drop-before,.drop-after').forEach((n) => n.classList.remove('dragging', 'drop-before', 'drop-after')); } }, icon('grip', 16));
+  el.append(h('header', { class: 'ghead' },
+    grip,
+    h('button', { class: 'gname', 'aria-expanded': String(!collapsed), title: collapsed ? 'Развернуть' : 'Свернуть', onclick: () => toggleGroup(g) },
+      h('span', { class: 'chev' }, icon('chevron', 14)), h('h3', {}, g.name), spaceName ? h('em', { class: 'gspace' }, spaceName) : null, h('span', { class: 'gcount' }, String(list.length))),
+    h('button', { class: 'icon-btn sm', title: 'Добавить запись в группу', 'aria-label': 'Добавить запись в группу', onclick: (e) => addMenu(e.currentTarget, g.id) }, icon('plus', 16)),
+    h('button', { class: 'icon-btn sm', title: 'Действия с группой', 'aria-label': 'Действия с группой', onclick: (e) => groupMenu(e.currentTarget, g) }, icon('more', 16))));
+  if (!collapsed) {
+    const ul = h('div', { class: 'glist', ondragover: (e) => itemDragOver(e, ul), ondragleave: (e) => { if (!ul.contains(e.relatedTarget)) clearDrop(ul); }, ondrop: (e) => itemDrop(e, ul, g.id) });
+    if (!list.length) ul.append(h('button', { class: 'gempty', onclick: () => openItemEditor(newItemFor('login', g.id), true) }, 'Пусто. Добавить первую запись'));
+    for (const i of list) ul.append(itemRow(i));
+    el.append(ul);
+  }
+  return el;
+}
+
+async function toggleGroup(g) {
+  S.ui.collapsed = { ...(S.ui.collapsed || {}), [g.id]: !S.ui.collapsed?.[g.id] };
+  st.setUi({ collapsed: S.ui.collapsed }); renderBoard();
+}
+
+function faviconUrl(pageUrl) {
+  const u = new URL(chrome.runtime.getURL('/_favicon/'));
+  u.searchParams.set('pageUrl', pageUrl); u.searchParams.set('size', '32');
+  return u.toString();
+}
+
+function itemRow(i) {
+  const glyph = h('span', { class: 'fav glyph ' + i.type }, icon(TYPE_ICON[i.type], 15));
+  let fav = glyph;
+  if (IS_WEB && i.url && i.type !== 'note') {
+    const nm = (i.title || hostOf(i.url) || '?').trim(); let hue = 0; for (const ch of hostOf(i.url) || nm) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
+    fav = h('span', { class: 'fav letter', style: { '--hue': String(hue) } }, nm.charAt(0).toUpperCase());
+  } else if (i.url && i.type !== 'note') {
+    const img = h('img', { class: 'fav', alt: '', loading: 'lazy', src: faviconUrl(normalizeUrl(i.url)) });
+    img.addEventListener('error', () => img.replaceWith(glyph));
+    fav = img;
+  }
+  const sub = i.type === 'login' ? i.username : i.type === 'link' ? hostOf(i.url) : (i.notes || '').split('\n')[0];
+  const row = h('div', { class: 'item ' + i.type, dataset: { id: i.id }, draggable: true, tabindex: '0', role: 'button', 'aria-label': `${TYPE_LABEL[i.type]}: ${i.title}`,
+    onclick: () => activate(i),
+    onkeydown: (e) => { if (e.key === 'Enter') activate(i); },
+    ondragstart: (e) => { S.drag = { type: 'item', id: i.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', i.id); row.classList.add('dragging'); },
+    ondragend: () => { S.drag = null; row.classList.remove('dragging'); document.querySelectorAll('.over,.drop-before,.drop-end,.drop').forEach((n) => n.classList.remove('over', 'drop-before', 'drop-end', 'drop')); } },
+    fav,
+    h('span', { class: 'ititle' }, i.title || hostOf(i.url) || '(без названия)'),
+    sub ? h('span', { class: 'isub' }, sub) : null,
+    h('span', { class: 'iacts' },
+      i.type === 'login' && i.username ? act('user', 'Скопировать логин', () => copy(i.username, 'Логин скопирован')) : null,
+      i.type === 'login' && i.password ? act('copy', 'Скопировать пароль', () => copy(i.password, 'Пароль скопирован', true)) : null,
+      act('edit', 'Изменить', () => openItemEditor(i, false)),
+      h('button', { class: 'iact star' + (i.favorite ? ' on' : ''), title: i.favorite ? 'Убрать из избранного' : 'В избранное', 'aria-label': 'Избранное', 'aria-pressed': String(!!i.favorite),
+        onclick: async (e) => { e.stopPropagation(); i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); } }, icon('star', 15))));
+  return row;
+  function act(name, title, fn) {
+    return h('button', { class: 'iact', title, 'aria-label': title, onclick: (e) => { e.stopPropagation(); fn(); } }, icon(name, 15));
+  }
+}
+
+// ───── действия с записью ─────
+function activateById(id) { const i = S.data.items.find((x) => x.id === id); if (i) activate(i); }
+
+async function activate(i) {
+  if (i.type === 'note') return openItemEditor(i, false, true);
+  const url = normalizeUrl(i.url);
+  if (!url) return openItemEditor(i, false);
+  if (i.type === 'link') { if (IS_WEB) window.open(url, '_blank', 'noopener'); else chrome.tabs.create({ url }); return; }
+  if (IS_WEB) { // в вебе автозаполнения нет: копируем пароль и открываем сайт
+    if (i.password) await copy(i.password, i.username ? `Пароль скопирован. Логин: ${i.username}` : 'Пароль скопирован', true);
+    window.open(url, '_blank', 'noopener'); return;
+  }
+  // логин: сначала разрешение на сайт (запрос должен идти прямо из клика), затем открытие и подстановка
+  const pattern = permissionPattern(url);
+  let ok = false;
+  try { ok = pattern ? await chrome.permissions.request({ origins: [pattern] }) : false; } catch { ok = false; }
+  if (!ok) { chrome.tabs.create({ url }); return toast('Сайт открыт без автозаполнения: нет разрешения на этот сайт', 'warn'); }
+  const r = await send({ cmd: 'launch', itemId: i.id });
+  if (!r?.ok) toast(r?.error || 'Не удалось открыть сайт', 'warn');
+}
+
+let clipTimer = null;
+async function copy(text, msg, secret = false) {
+  try { await navigator.clipboard.writeText(text); } catch { return toast('Не удалось скопировать', 'warn'); }
+  const sec = S.prefs.clipClearSec;
+  toast(secret && sec ? `${msg}. Буфер очистится через ${sec} с` : msg);
+  if (secret && sec > 0) { clearTimeout(clipTimer); clipTimer = setTimeout(() => navigator.clipboard.writeText('').catch(() => {}), sec * 1000); }
+  send({ cmd: 'touch' });
+}
+
+function nextOrder(groupId) {
+  return Math.max(-1, ...S.data.items.filter((i) => i.groupId === groupId && !i.deleted).map((i) => i.order)) + 1;
+}
+function newItemFor(type, groupId) { return newItem(type, groupId, nextOrder(groupId)); }
+
+function makeGroup(spaceId, name, color) {
+  const order = Math.max(-1, ...S.data.groups.filter((g) => g.spaceId === spaceId && !g.deleted).map((g) => g.order)) + 1;
+  const g = { id: uid(), spaceId, name, color: color || GROUP_COLORS[order % GROUP_COLORS.length], order, updatedAt: Date.now() };
+  S.data.groups.push(g);
+  return g;
+}
+function deleteGroupRaw(g) {
+  for (const i of S.data.items.filter((x) => x.groupId === g.id && !x.deleted)) { i.deleted = true; stamp(i); }
+  g.deleted = true; stamp(g);
+}
+
+// ───── меню ─────
+function addMenu(anchor, groupId) {
+  const gid = groupId || firstGroupId();
+  const mk = (type) => async () => {
+    const id = gid || (await ensureGroup()).id;
+    openItemEditor(newItemFor(type, id), true);
+  };
+  popMenu(anchor, [
+    { label: 'Логин (сайт + пароль)', icon: 'key', onClick: mk('login') },
+    { label: 'Ссылка', icon: 'link', onClick: mk('link') },
+    { label: 'Заметка', icon: 'note', onClick: mk('note') },
+    ...(groupId ? [] : ['-', { label: 'Группа', icon: 'folder', onClick: () => groupDialog() }]),
+  ]);
+}
+function firstGroupId() {
+  const g = liveGroups(S.data).filter((x) => x.spaceId === S.spaceId).sort((a, b) => a.order - b.order)[0];
+  return g?.id || null;
+}
+async function ensureGroup() {
+  const g = makeGroup(S.spaceId, 'Общее');
+  await commit(); renderBoard();
+  return g;
+}
+
+function mainMenu(anchor) {
+  popMenu(anchor, [
+    { label: 'Импорт из файла', icon: 'upload', onClick: openImport },
+    { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
+    { label: 'Настройки', icon: 'sliders', onClick: openSettings },
+    '-',
+    { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
+  ]);
+}
+
+async function lockNow() { await send({ cmd: 'lock' }); await st.clearSessionKey(); S.key = null; S.data = null; renderUnlock(); }
+
+function groupMenu(anchor, g) {
+  popMenu(anchor, [
+    { label: 'Изменить группу', icon: 'edit', onClick: () => groupDialog(g) },
+    { label: 'Свернуть / развернуть', icon: 'chevron', onClick: () => toggleGroup(g) },
+    '-',
+    { label: 'Удалить группу', icon: 'trash', danger: true, onClick: async () => {
+      const n = S.data.items.filter((i) => i.groupId === g.id && !i.deleted).length;
+      if (!(await confirmBox(`Удалить группу «${g.name}» и все записи в ней (${n})? Отменить нельзя.`))) return;
+      deleteGroupRaw(g); await commit(); renderAll(); toast('Группа удалена');
+    } },
+  ]);
+}
+
+function groupDialog(g) {
+  const spaces = liveSpaces(S.data);
+  let color = g?.color || GROUP_COLORS[liveGroups(S.data).filter((x) => x.spaceId === S.spaceId).length % GROUP_COLORS.length];
+  const name = h('input', { type: 'text', value: g?.name || '', maxlength: '60', placeholder: 'Например, Хостинг и серверы', autofocus: true });
+  const space = h('select', {}, spaces.map((s) => h('option', { value: s.id, selected: s.id === (g?.spaceId || S.spaceId) }, s.name)));
+  const sw = h('div', { class: 'swatches', role: 'radiogroup', 'aria-label': 'Цвет группы' });
+  const paint = () => sw.querySelectorAll('button').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.c === color)));
+  for (const c of GROUP_COLORS) sw.append(h('button', { type: 'button', role: 'radio', class: 'swatch', dataset: { c }, style: { background: c }, 'aria-label': c, onclick: () => { color = c; paint(); } }));
+  paint();
+  const save = async () => {
+    const nm = name.value.trim(); if (!nm) return name.focus();
+    if (g) { g.name = nm; g.color = color; if (g.spaceId !== space.value) { g.spaceId = space.value; g.order = Math.max(-1, ...S.data.groups.filter((x) => x.spaceId === g.spaceId).map((x) => x.order)) + 1; } stamp(g); }
+    else makeGroup(space.value, nm, color);
+    await commit(); m.close(); renderAll();
+  };
+  name.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+  const m = modal({ title: g ? 'Изменить группу' : 'Новая группа',
+    body: [h('label', { class: 'field' }, h('span', {}, 'Название'), name), h('label', { class: 'field' }, h('span', {}, 'Пространство'), space), h('div', { class: 'field' }, h('span', {}, 'Цвет'), sw)],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: save }, g ? 'Сохранить' : 'Создать')] });
+}
+
+// ───── редактор записи ─────
+function openItemEditor(item, isNew, startPreview = false) {
+  const d = structuredClone(item);
+  const body = h('div', { class: 'editor' });
+  const seg = h('div', { class: 'seg' });
+  const secLogin = h('div', { class: 'sec' });
+  const secUrl = h('div', { class: 'sec' });
+  const title = h('input', { type: 'text', value: d.title, placeholder: 'Название', maxlength: '120', autofocus: true });
+  const url = h('input', { type: 'text', value: d.url, placeholder: 'https://example.com/login', autocomplete: 'off', spellcheck: 'false' });
+  const user = h('input', { type: 'text', value: d.username, autocomplete: 'off', spellcheck: 'false' });
+  const pass = h('input', { type: 'password', value: d.password, autocomplete: 'new-password', spellcheck: 'false' });
+  const eye = h('button', { type: 'button', class: 'icon-btn sm', title: 'Показать пароль', 'aria-label': 'Показать пароль', onclick: () => { pass.type = pass.type === 'password' ? 'text' : 'password'; } }, icon('eye', 16));
+  const len = h('input', { type: 'number', min: '8', max: '64', value: String(S.ui.genLen || 20), class: 'num', 'aria-label': 'Длина пароля' });
+  const sym = h('input', { type: 'checkbox', checked: S.ui.genSym !== false });
+  const gen = h('button', { type: 'button', class: 'btn sm', onclick: () => {
+    const n = Math.min(64, Math.max(8, Number(len.value) || 20));
+    S.ui.genLen = n; S.ui.genSym = sym.checked; st.setUi({ genLen: n, genSym: sym.checked });
+    pass.value = generatePassword(n, { symbols: sym.checked }); pass.type = 'text';
+  } }, icon('refresh', 14), 'Создать пароль');
+  const auto = h('input', { type: 'checkbox', checked: !!d.autoSubmit });
+  const notes = h('textarea', { rows: d.type === 'note' ? '12' : '4', placeholder: 'Текст заметки. Поддерживается Markdown: # заголовок, **жирный**, - список, `код`' }, d.notes);
+  const preview = h('div', { class: 'preview hidden' });
+  const tags = h('input', { type: 'text', value: (d.tags || []).join(', '), placeholder: 'через запятую: клиент, хостинг' });
+  const gsel = h('select', {});
+  const spaces = liveSpaces(S.data);
+  for (const sp of spaces) {
+    const gs = liveGroups(S.data).filter((g) => g.spaceId === sp.id).sort((a, b) => a.order - b.order);
+    if (!gs.length) continue;
+    gsel.append(h('optgroup', { label: sp.name }, gs.map((g) => h('option', { value: g.id, selected: g.id === d.groupId }, g.name))));
+  }
+  const fav = h('input', { type: 'checkbox', checked: !!d.favorite });
+  const prevBtn = h('button', { type: 'button', class: 'link-btn', onclick: () => togglePreview() }, 'Просмотр');
+  const togglePreview = (on) => {
+    const show = on ?? preview.classList.contains('hidden');
+    if (show) { preview.replaceChildren(renderMarkdown(notes.value || '*Пусто*')); }
+    preview.classList.toggle('hidden', !show); notes.classList.toggle('hidden', show);
+    prevBtn.textContent = show ? 'Редактировать' : 'Просмотр';
+  };
+  const refresh = () => {
+    seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === d.type));
+    secLogin.classList.toggle('hidden', d.type !== 'login');
+    secUrl.classList.toggle('hidden', d.type === 'note');
+    notes.rows = d.type === 'note' ? 12 : 4;
+  };
+  for (const t of ['login', 'link', 'note']) seg.append(h('button', { type: 'button', dataset: { t }, onclick: () => { d.type = t; refresh(); } }, icon(TYPE_ICON[t], 15), TYPE_LABEL[t]));
+  secUrl.append(h('label', { class: 'field' }, h('span', {}, 'Адрес сайта'), url));
+  secLogin.append(
+    h('div', { class: 'two' }, h('label', { class: 'field' }, h('span', {}, 'Логин или почта'), user), h('label', { class: 'field' }, h('span', {}, 'Пароль'), h('div', { class: 'inp-row' }, pass, eye))),
+    h('div', { class: 'genrow' }, gen, h('label', { class: 'inline' }, 'Длина', len), h('label', { class: 'inline' }, sym, 'Символы')),
+    h('label', { class: 'inline check' }, auto, 'После подстановки нажимать «Войти» автоматически'));
+  body.append(
+    isNew ? h('div', { class: 'field' }, h('span', {}, 'Тип'), seg) : h('div', { class: 'field' }, seg),
+    h('label', { class: 'field' }, h('span', {}, 'Название'), title),
+    secUrl, secLogin,
+    h('div', { class: 'field' }, h('div', { class: 'label-row' }, h('span', {}, 'Заметки'), prevBtn), notes, preview),
+    h('div', { class: 'two' }, h('label', { class: 'field' }, h('span', {}, 'Группа'), gsel), h('label', { class: 'field' }, h('span', {}, 'Теги'), tags)),
+    h('label', { class: 'inline check' }, fav, 'В избранное'));
+  refresh();
+  if (startPreview && d.notes) togglePreview(true);
+
+  const save = async () => {
+    d.title = title.value.trim(); d.url = d.type === 'note' ? '' : url.value.trim();
+    d.username = d.type === 'login' ? user.value.trim() : ''; d.password = d.type === 'login' ? pass.value : '';
+    d.autoSubmit = d.type === 'login' && auto.checked; d.notes = notes.value; d.favorite = fav.checked;
+    d.tags = [...new Set(tags.value.split(/[,\s]+/).map((t) => t.replace(/^#/, '').trim().toLowerCase()).filter(Boolean))];
+    if (d.type !== 'note' && d.url) d.url = normalizeUrl(d.url);
+    if (!d.title) d.title = hostOf(d.url).replace(/^www\./, '');
+    if (!d.title) { title.focus(); return toast('Укажите название или адрес', 'warn'); }
+    let gid = gsel.value;
+    if (!gid) gid = (await ensureGroup()).id;
+    if (gid !== d.groupId) { d.groupId = gid; if (!isNew) d.order = nextOrder(gid); }
+    const real = isNew ? d : S.data.items.find((x) => x.id === d.id);
+    Object.assign(real, d); stamp(real);
+    if (isNew) S.data.items.push(real);
+    await commit(); mm.close(); renderAll(); toast(isNew ? 'Запись добавлена' : 'Сохранено');
+  };
+  const del = async () => {
+    if (!(await confirmBox(`Удалить «${item.title || 'запись'}»? Отменить нельзя.`))) return;
+    const real = S.data.items.find((x) => x.id === item.id); real.deleted = true; stamp(real);
+    await commit(); mm.close(); renderAll(); toast('Удалено');
+  };
+  const mm = modal({ title: isNew ? 'Новая запись' : 'Изменить запись', body, wide: true,
+    footer: [!isNew ? h('button', { class: 'btn danger left', onclick: del }, icon('trash', 15), 'Удалить') : null,
+      h('button', { class: 'btn', onclick: () => mm.close() }, 'Отмена'),
+      h('button', { class: 'btn primary', onclick: save }, 'Сохранить')],
+    onClose: () => flushReload() });
+  mm.box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); } });
+}
+
+async function flushReload() {
+  if (!S.reloadPending || document.querySelector('.scrim')) return;
+  S.reloadPending = false;
+  try { S.data = await st.readData(S.key, S.env); renderAll(); } catch { /* */ }
+}
+
+// ───── перетаскивание ─────
+function clearDrop(ul) { ul.classList.remove('over'); ul.querySelectorAll('.drop-before').forEach((n) => n.classList.remove('drop-before')); ul.classList.remove('drop-end'); }
+function dropTarget(ul, y) {
+  const rows = [...ul.querySelectorAll('.item:not(.dragging)')];
+  return rows.find((r) => { const b = r.getBoundingClientRect(); return y < b.top + b.height / 2; }) || null;
+}
+function itemDragOver(e, ul) {
+  if (S.drag?.type !== 'item') return;
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  ul.classList.add('over');
+  const t = dropTarget(ul, e.clientY);
+  ul.querySelectorAll('.drop-before').forEach((n) => n.classList.remove('drop-before'));
+  ul.classList.toggle('drop-end', !t);
+  t?.classList.add('drop-before');
+}
+async function itemDrop(e, ul, groupId) {
+  if (S.drag?.type !== 'item') return;
+  e.preventDefault();
+  const t = dropTarget(ul, e.clientY);
+  const id = S.drag.id; clearDrop(ul);
+  await moveItem(id, groupId, t?.dataset.id || null);
+}
+async function moveItem(id, groupId, beforeId) {
+  const it = S.data.items.find((x) => x.id === id); if (!it) return;
+  const list = S.data.items.filter((x) => x.groupId === groupId && !x.deleted && x.id !== id).sort((a, b) => a.order - b.order);
+  const idx = beforeId ? list.findIndex((x) => x.id === beforeId) : -1;
+  list.splice(idx < 0 ? list.length : idx, 0, it);
+  list.forEach((x, n) => { if (x.order !== n || x.groupId !== groupId) { x.order = n; x.groupId = groupId; stamp(x); } });
+  await commit(); renderAll();
+}
+async function moveItemToSpace(id, spaceId) {
+  let g = liveGroups(S.data).filter((x) => x.spaceId === spaceId).sort((a, b) => a.order - b.order)[0];
+  if (!g) g = makeGroup(spaceId, 'Общее');
+  await moveItem(id, g.id, null);
+  toast('Запись перенесена в «' + S.data.spaces.find((s) => s.id === spaceId).name + '»');
+}
+function groupDragOver(e, el, g) {
+  if (S.drag?.type !== 'group' || S.drag.id === g.id) return;
+  e.preventDefault();
+  const r = el.getBoundingClientRect();
+  const before = e.clientY < r.top + r.height / 2;
+  el.classList.toggle('drop-before', before); el.classList.toggle('drop-after', !before);
+}
+async function groupDrop(e, el, g) {
+  if (S.drag?.type !== 'group' || S.drag.id === g.id) return;
+  e.preventDefault();
+  const before = el.classList.contains('drop-before');
+  el.classList.remove('drop-before', 'drop-after');
+  const dragged = S.data.groups.find((x) => x.id === S.drag.id);
+  const list = liveGroups(S.data).filter((x) => x.spaceId === g.spaceId && x.id !== dragged.id).sort((a, b) => a.order - b.order);
+  let idx = list.findIndex((x) => x.id === g.id); if (!before) idx++;
+  dragged.spaceId = g.spaceId;
+  list.splice(idx, 0, dragged);
+  list.forEach((x, n) => { if (x.order !== n || x === dragged) { x.order = n; stamp(x); } });
+  await commit(); renderAll();
+}
+
+// ───────────────────────── синхронизация ─────────────────────────
+function openSyncDialog() {
+  if (IS_WEB) {
+    const m = modal({ title: 'Синхронизация', body: [h('p', { class: 'lead' }, 'В веб-версии записи пока хранятся только в этом браузере, в зашифрованном виде. Синхронизация через Google подключается следующим шагом.'),
+      h('p', { class: 'hint' }, 'Резервную копию можно сделать в меню → «Экспорт и резервная копия».')], footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Понятно')] });
+    return;
+  }
+  const body = h('div', { class: 'sync-body' });
+  const m = modal({ title: 'Синхронизация между устройствами', body, footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
+  const draw = async () => {
+    S.sync = await st.getSyncState(); renderSyncBadge();
+    const s = S.sync; const msg = h('p', { class: 'form-msg', role: 'alert' });
+    body.replaceChildren();
+    if (!s.enabled) {
+      body.append(
+        h('p', { class: 'lead' }, 'Вход через Google подключит облачную копию. В облако уходит только зашифрованное содержимое: названия, адреса, логины и пароли расшифровываются мастер-паролем только у вас.'),
+        h('ul', { class: 'bullets' }, h('li', {}, 'На втором устройстве установите расширение, нажмите «Уже есть в Google» и введите тот же мастер-пароль.'), h('li', {}, 'Правки с разных устройств сливаются автоматически, побеждает более поздняя.')));
+      const b = h('button', { class: 'btn primary', onclick: async () => {
+        b.disabled = true; b.textContent = 'Подключаю…'; msg.textContent = '';
+        try { await sync.enableSync(); toast('Синхронизация включена'); } catch (e) { msg.textContent = describeSyncError(e); }
+        await draw();
+      } }, icon('cloud', 16), 'Войти через Google и включить');
+      body.append(b, msg);
+    } else {
+      body.append(
+        h('dl', { class: 'kv' }, h('dt', {}, 'Аккаунт'), h('dd', {}, s.email || '—'), h('dt', {}, 'Последняя синхронизация'), h('dd', {}, s.lastSync ? new Date(s.lastSync).toLocaleString('ru-RU') : 'ещё не было')));
+      if (s.lastError) body.append(h('p', { class: 'form-msg' }, describeSyncError({ code: s.lastError.split(':')[0], message: s.lastError })));
+      const row = h('div', { class: 'row' });
+      const now = h('button', { class: 'btn primary', onclick: async () => {
+        now.disabled = true; now.textContent = 'Синхронизирую…';
+        const r = await send({ cmd: 'syncNow' });
+        if (!r?.ok) toast(describeSyncError(r || {}), 'warn'); else toast('Готово');
+        S.data = await st.readData(S.key, await st.loadEnvelope()); S.env = await st.loadEnvelope(); renderAll(); await draw();
+      } }, icon('sync', 16), 'Синхронизировать сейчас');
+      row.append(now);
+      if (/SALT_MISMATCH/.test(s.lastError || '')) row.append(h('button', { class: 'btn danger', onclick: async () => {
+        if (!(await confirmBox('В облаке лежит хранилище с другим мастер-паролем. Заменить его текущим? Другие устройства потребуют заново войти и ввести новый пароль.', 'Заменить облачную копию', true))) return;
+        try { await sync.overwriteCloud(); toast('Облачная копия заменена'); } catch (e) { toast(describeSyncError(e), 'warn'); }
+        await draw();
+      } }, 'Заменить облачную копию'));
+      row.append(h('button', { class: 'btn', onclick: async () => {
+        if (!(await confirmBox('Отключить синхронизацию на этом устройстве? Данные в облаке и на устройстве останутся.', 'Отключить', false))) return;
+        await sync.disableSync(); await draw();
+      } }, 'Отключить'));
+      body.append(row, msg);
+    }
+  };
+  draw();
+}
+function describeSyncError(e) {
+  const code = e.code || ''; const msg = e.message || e.error || '';
+  if (code === 'SALT_MISMATCH' || /SALT_MISMATCH/.test(msg)) return 'В облаке уже есть хранилище с другим мастер-паролем. Войдите в него на этом устройстве через «Уже есть в Google» или замените облачную копию текущей.';
+  if (code === 'GOOGLE_AUTH') return 'Вход в Google не удался: ' + msg;
+  if (/HTTP_403|PERMISSION/.test(code + msg)) return 'Доступ к облаку запрещён. Проверьте правила Firestore и что вход выполнен тем же аккаунтом.';
+  if (code === 'NOT_SIGNED_IN') return 'Нужно войти через Google заново.';
+  return msg || 'Неизвестная ошибка синхронизации';
+}
+
+// ───────────────────────── настройки, импорт, экспорт ─────────────────────────
+function openSettings() {
+  const lock = h('select', {}, [[0, 'Не блокировать'], [5, '5 минут'], [15, '15 минут'], [30, '30 минут'], [60, '1 час'], [240, '4 часа']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.autolockMin }, l)));
+  const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
+  const theme = h('select', {}, [['pearl', 'Жемчуг (светлая, 3D)'], ['peach', 'Персик (светлая, 3D)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
+  const m = modal({ title: 'Настройки',
+    body: [h('label', { class: 'field' }, h('span', {}, 'Блокировать после бездействия'), lock),
+      h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
+      h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
+      h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера.')],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: async () => {
+      await st.setPrefs({ autolockMin: Number(lock.value), clipClearSec: Number(clip.value), scene: theme.value });
+      S.prefs = await st.getPrefs(); applyTheme(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
+    } }, 'Сохранить')] });
+}
+
+function openImport() {
+  const file = h('input', { type: 'file', accept: '.csv,.html,.htm,text/csv,text/html', 'aria-label': 'Файл для импорта' });
+  const info = h('div', { class: 'import-info' });
+  const spaces = liveSpaces(S.data);
+  const space = h('select', {}, spaces.map((s) => h('option', { value: s.id, selected: s.id === S.spaceId }, s.name)));
+  const byFolder = h('input', { type: 'checkbox', checked: true });
+  let rows = [];
+  const go = h('button', { class: 'btn primary', disabled: true, onclick: async () => {
+    const r = applyImport(rows, space.value, byFolder.checked);
+    await commit(); m.close(); S.spaceId = space.value; renderAll();
+    toast(`Добавлено: ${r.added}. Пропущено дубликатов: ${r.skipped}`);
+  } }, 'Импортировать');
+  file.addEventListener('change', async () => {
+    const f = file.files[0]; if (!f) return;
+    const text = await f.text();
+    rows = /<dl|<a\s/i.test(text.slice(0, 5000)) && !/^[^<]*,/.test(text.slice(0, 200)) ? importBookmarksHtml(text) : importCsv(text);
+    const logins = rows.filter((r) => r.type === 'login').length;
+    const folders = new Set(rows.map((r) => r.folder).filter(Boolean));
+    info.replaceChildren(rows.length
+      ? h('p', {}, `Найдено записей: ${rows.length} (логинов: ${logins}, ссылок: ${rows.length - logins}). Папок: ${folders.size}.`)
+      : h('p', { class: 'form-msg' }, 'В файле не нашлось подходящих записей. Подойдёт CSV с колонками name, url, username, password или файл закладок HTML.'));
+    go.disabled = !rows.length;
+  });
+  const m = modal({ title: 'Импорт из файла',
+    body: [h('p', { class: 'lead' }, 'CSV из True Key, Chrome, Bitwarden, LastPass и других менеджеров паролей либо файл закладок HTML (например, из Tabsbook). Папки станут группами. Повторяющиеся записи пропускаются.'),
+      h('label', { class: 'field' }, h('span', {}, 'Файл'), file), info,
+      h('label', { class: 'field' }, h('span', {}, 'Пространство'), space),
+      h('label', { class: 'inline check' }, byFolder, 'Создавать группы по папкам'),
+      h('p', { class: 'hint' }, 'После импорта удалите файл с паролями с компьютера: в нём они лежат открытым текстом.')],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), go] });
+}
+
+function applyImport(rows, spaceId, byFolder) {
+  const key = (u, n) => (normalizeUrl(u) + '|' + n).toLowerCase();
+  const existing = new Set(liveItems(S.data).filter((i) => i.url || i.username).map((i) => key(i.url, i.username)));
+  const groups = new Map(liveGroups(S.data).filter((g) => g.spaceId === spaceId).map((g) => [lc(g.name), g]));
+  let added = 0, skipped = 0;
+  for (const r of rows) {
+    const k = key(r.url, r.username);
+    if ((r.url || r.username) && existing.has(k)) { skipped++; continue; }
+    const gname = (byFolder && r.folder) || 'Импорт';
+    let g = groups.get(lc(gname));
+    if (!g) { g = makeGroup(spaceId, gname); groups.set(lc(gname), g); }
+    const it = newItemFor(r.type, g.id);
+    Object.assign(it, { title: r.title, url: r.url ? normalizeUrl(r.url) : '', username: r.username, password: r.password, notes: r.notes });
+    S.data.items.push(it); existing.add(k); added++;
+  }
+  return { added, skipped };
+}
+
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href: url, download: name }); document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function openExport() {
+  const date = new Date().toISOString().slice(0, 10);
+  const m = modal({ title: 'Экспорт и резервная копия',
+    body: [
+      h('div', { class: 'xrow' }, h('div', {}, h('strong', {}, 'Зашифрованная копия'), h('p', { class: 'hint' }, 'Файл .json открывается только с вашим мастер-паролем. Безопасно хранить где угодно.')),
+        h('button', { class: 'btn', onclick: async () => { download(`vaultboard-backup-${date}.json`, JSON.stringify(await st.loadEnvelope()), 'application/json'); toast('Копия сохранена'); } }, icon('download', 16), 'Скачать')),
+      h('div', { class: 'xrow' }, h('div', {}, h('strong', {}, 'Открытый CSV'), h('p', { class: 'hint warn' }, 'Пароли будут в файле открытым текстом. Удалите файл сразу после использования.')),
+        h('button', { class: 'btn danger', onclick: async () => {
+          if (!(await confirmBox('Файл будет содержать все пароли в открытом виде. Продолжить?', 'Скачать CSV', true))) return;
+          const gname = (id) => S.data.groups.find((g) => g.id === id)?.name || '';
+          download(`vaultboard-export-${date}.csv`, '﻿' + toCsv(liveItems(S.data), gname), 'text/csv'); toast('CSV сохранён');
+        } }, icon('download', 16), 'Скачать'))],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
+}
+
+// ───────────────────────── глобальные события ─────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (!S.key || document.querySelector('.scrim')) return;
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  if ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) { e.preventDefault(); $('#q')?.focus(); $('#q')?.select(); }
+});
+let lastTouch = 0;
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { const n = Date.now(); if (S.key && n - lastTouch > 20000) { lastTouch = n; send({ cmd: 'touch' }); } }, true);
+
+// 3D-наклон плиток за курсором (светлая тема)
+{
+  let raf = 0, cur = null, pt = null;
+  const reset = (el) => { el.style.removeProperty('--rx'); el.style.removeProperty('--ry'); };
+  document.addEventListener('pointermove', (e) => {
+    if (e.pointerType === 'touch' || S.drag || document.documentElement.dataset.look !== 'pearl' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const t = e.target.closest?.('.group, .empty, .gate-card');
+    if (cur && cur !== t) reset(cur);
+    cur = t; pt = e; if (!t || raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0; if (!cur || !pt) return;
+      const r = cur.getBoundingClientRect(), x = (pt.clientX - r.left) / r.width, y = (pt.clientY - r.top) / r.height;
+      const max = Math.min(5, 1400 / Math.max(r.width, 1) * 1.2);
+      cur.style.setProperty('--ry', ((x - .5) * max * 2).toFixed(2) + 'deg');
+      cur.style.setProperty('--rx', ((.5 - y) * max * 1.6).toFixed(2) + 'deg');
+      cur.style.setProperty('--mx', (x * 100).toFixed(1) + '%'); cur.style.setProperty('--my', (y * 100).toFixed(1) + '%');
+    });
+  }, { passive: true });
+  document.addEventListener('pointerleave', () => cur && reset(cur), true);
+}
+
+boot();
