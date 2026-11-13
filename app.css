@@ -659,3 +659,5 @@ html[data-look] .group-add svg { width: 26px; height: 26px; padding: 7px; box-si
 html[data-look] .item .fav-img { background: #fff; padding: 7px; box-shadow: 0 2px 8px rgba(40, 30, 90, .14), 0 0 0 1px rgba(110, 100, 190, .12); }
 html[data-look] .fav.letter { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .22);
   background: linear-gradient(150deg, color-mix(in srgb, hsl(var(--hue) 80% 68%) 58%, var(--p-o1l, #bda9ff)), color-mix(in srgb, hsl(var(--hue) 66% 46%) 56%, var(--p-o1d, #4a2fd0))); box-shadow: 0 4px 10px -3px color-mix(in srgb, hsl(var(--hue) 70% 50%) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, .45); }
+.maprow { padding: 10px 0; border-bottom: 1px solid var(--line); } .maprow:last-child { border-bottom: 0; } .maprow strong { display: block; margin-bottom: 3px; font-size: 14px; } .maprow p { margin: 0; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.maplinks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 7px; font-size: 13px; } .maplinks a { color: var(--accent-hi); text-decoration: none; } .maplinks a:hover { text-decoration: underline; }

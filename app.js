@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607204';
-import * as fb from './lib/firebase.js?v=1794607204';
-import * as st from './lib/store.js?v=1794607204';
-import * as sync from './lib/sync.js?v=1794607204';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607204';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607204';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607204';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607204';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794607376';
+import * as fb from './lib/firebase.js?v=1794607376';
+import * as st from './lib/store.js?v=1794607376';
+import * as sync from './lib/sync.js?v=1794607376';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794607376';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794607376';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794607376';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794607376';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -14,7 +14,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.5.0' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.6.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -520,6 +520,7 @@ function mainMenu(anchor) {
     { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
     { label: 'Настройки', icon: 'sliders', onClick: openSettings },
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
+    { label: 'Где что лежит', icon: 'folder', onClick: openMap },
     IS_WEB ? { label: `Скачать расширение для Chrome (v${EXT_VERSION})`, icon: 'download', onClick: openExtDownload } : null,
     '-',
     { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
@@ -774,6 +775,24 @@ function describeSyncError(e) {
   if (/HTTP_403|PERMISSION/.test(code + msg)) return 'Доступ к облаку запрещён. Проверьте правила Firestore и что вход выполнен тем же аккаунтом.';
   if (code === 'NOT_SIGNED_IN') return 'Нужно войти через Google заново.';
   return msg || 'Неизвестная ошибка синхронизации';
+}
+
+// ───────────────────────── памятка: где что лежит ─────────────────────────
+function openMap() {
+  const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener noreferrer' }, text);
+  const row = (title, text, links) => h('div', { class: 'maprow' }, h('strong', {}, title), h('p', {}, text), links ? h('div', { class: 'maplinks' }, links) : null);
+  const m = modal({ title: 'Где что лежит', wide: true,
+    body: [
+      row('Ваши пароли и записи', 'Хранятся зашифрованными на каждом устройстве: в браузере сайта и в хранилище расширения. Расшифровать их может только мастер-пароль. Если включена синхронизация, зашифрованная копия лежит ещё и в облаке Firebase.'),
+      row('Сайт (веб-версия)', 'Лежит на GitHub Pages. Исходный код сайта: репозиторий vaultboard-web на вашем GitHub. Здесь же файл расширения. Сайт обновляется, когда в репозиторий загружают новую версию.',
+        [link('https://kostyanmolokov-cmyk.github.io/vaultboard-web/', 'Открыть сайт'), link('https://github.com/kostyanmolokov-cmyk/vaultboard-web', 'Репозиторий на GitHub'), link('https://github.com/kostyanmolokov-cmyk/vaultboard-web/settings/pages', 'Настройки Pages')]),
+      row('Расширение для Chrome', `Установленная папка лежит у вас на компьютере (куда распаковали архив). Новый архив берётся на сайте: меню → «Скачать расширение». Сейчас актуальная версия ${EXT_VERSION}. Код расширения целиком внутри архива.`,
+        [link('chrome://extensions', 'Страница расширений (скопируйте адрес в Chrome)')]),
+      row('Облако и вход через Google', 'Проект Firebase vaultboard-kostya. В Firestore лежат только зашифрованные записи и данные для восстановления пароля, в Authentication учётная запись Google. Здесь же разрешённые адреса сайта: новый адрес нужно добавить в Authentication → Settings → Authorized domains.',
+        [link('https://console.firebase.google.com/project/vaultboard-kostya/firestore', 'Firestore (данные)'), link('https://console.firebase.google.com/project/vaultboard-kostya/authentication/users', 'Authentication (вход)')]),
+      row('Vercel', 'Там создан пустой проект vaultboard. Сейчас он не используется: сайт живёт на GitHub Pages.', [link('https://vercel.com/dashboard', 'Панель Vercel')]),
+      row('Что хранить у себя', 'Мастер-пароль и ключ восстановления (меню → «Ключ восстановления»). Без них, если ещё и недоступен Google-аккаунт, записи не открыть. Резервную копию делайте в меню → «Экспорт и резервная копия».')],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
 }
 
 // ───────────────────────── скачать расширение (только веб) ─────────────────────────
