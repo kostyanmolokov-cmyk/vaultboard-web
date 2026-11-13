@@ -1,5 +1,6 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER } from './lib/crypto.js';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js';
+import * as fb from './lib/firebase.js';
 import * as st from './lib/store.js';
 import * as sync from './lib/sync.js';
 import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js';
@@ -21,6 +22,7 @@ const TYPE_ICON = { login: 'key', link: 'link', note: 'note' };
 
 // ───────────────────────── запуск ─────────────────────────
 async function boot() {
+  if (IS_WEB) fb.warmup();
   S.prefs = await st.getPrefs();
   S.ui = await st.getUi();
   applyTheme();
@@ -88,7 +90,7 @@ function pwField(label, id, opts = {}) {
 function renderSetup(mode = 'new') {
   const tabs = h('div', { class: 'seg' },
     h('button', { class: mode === 'new' ? 'on' : '', onclick: () => renderSetup('new') }, 'Новое хранилище'),
-    IS_WEB ? null : h('button', { class: mode === 'cloud' ? 'on' : '', onclick: () => renderSetup('cloud') }, 'Уже есть в Google'));
+    h('button', { class: mode === 'cloud' ? 'on' : '', onclick: () => renderSetup('cloud') }, 'Уже есть в Google'));
   const msg = h('p', { class: 'form-msg', role: 'alert' });
   let form;
   if (mode === 'new') {
@@ -101,10 +103,12 @@ function renderSetup(mode = 'new') {
       btn.disabled = true; btn.textContent = 'Создаю…'; msg.textContent = '';
       const salt = b64.to(randomBytes(16));
       const key = await deriveKey(p1, salt, DEFAULT_ITER);
-      S.env = await st.writeData(key, { v: 1, kdf: 'PBKDF2-SHA256', iter: DEFAULT_ITER, salt }, emptyData());
+      const rk = newRecoveryKey();
+      S.env = await st.writeData(key, { v: 1, kdf: 'PBKDF2-SHA256', iter: DEFAULT_ITER, salt, rk: await wrapKey(key, rk) }, emptyData());
       await st.setSessionKey(key);
       await enter(key);
       toast('Хранилище создано');
+      showRecoveryKey(rk);
     } },
       h('p', { class: 'lead' }, 'Всё шифруется мастер-паролем на этом устройстве. Восстановить его нельзя, поэтому запомните или сохраните в надёжном месте.'),
       pwField('Мастер-пароль', 'pw1', { autofocus: true, autocomplete: 'new-password' }),
@@ -130,7 +134,8 @@ function renderSetup(mode = 'new') {
             msg.textContent = er.code === 'WRONG_PASSWORD' ? 'Неверный мастер-пароль.' : 'Не удалось загрузить: ' + er.message;
             btn2.disabled = false; btn2.textContent = 'Расшифровать и открыть';
           }
-        } }, h('p', { class: 'lead' }, `Вы вошли как ${r.email}. Введите мастер-пароль этого хранилища.`), pwField('Мастер-пароль', 'pwc', { autofocus: true }), btn2));
+        } }, h('p', { class: 'lead' }, `Вы вошли как ${r.email}. Введите мастер-пароль этого хранилища.`), pwField('Мастер-пароль', 'pwc', { autofocus: true }), btn2,
+          h('button', { class: 'link-btn', type: 'button', onclick: openForgot }, 'Забыли мастер-пароль?')));
         startBtn.remove();
         $('#pwc')?.focus();
       } catch (er) {
@@ -142,7 +147,7 @@ function renderSetup(mode = 'new') {
       h('p', { class: 'lead' }, 'Войдите тем же аккаунтом Google, которым пользуетесь на другом устройстве. Данные придут зашифрованными, пароль понадобится только для расшифровки.'),
       startBtn, stage, msg);
   }
-  shell([IS_WEB ? null : tabs, form]);
+  shell([tabs, form]);
 }
 
 function renderUnlock() {
@@ -165,11 +170,7 @@ function renderUnlock() {
     h('p', { class: 'lead' }, 'Хранилище заблокировано.'),
     pwField('Мастер-пароль', 'pwu', { autofocus: true }),
     msg, btn,
-    h('button', { class: 'link-btn', type: 'button', onclick: async () => {
-      if (await confirmBox('Это удалит хранилище с этого устройства. Копия в облаке (если синхронизация была включена) останется. Продолжить?', 'Стереть на этом устройстве')) {
-        await st.wipeAll(); S.env = null; renderSetup();
-      }
-    } }, 'Забыли пароль?')));
+    h('button', { class: 'link-btn', type: 'button', onclick: openForgot }, 'Забыли пароль?')));
 }
 
 // ───────────────────────── основной экран ─────────────────────────
@@ -488,6 +489,7 @@ function mainMenu(anchor) {
     { label: 'Импорт из файла', icon: 'upload', onClick: openImport },
     { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
     { label: 'Настройки', icon: 'sliders', onClick: openSettings },
+    { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
     '-',
     { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
   ]);
@@ -683,11 +685,6 @@ async function groupDrop(e, el, g) {
 
 // ───────────────────────── синхронизация ─────────────────────────
 function openSyncDialog() {
-  if (IS_WEB) {
-    const m = modal({ title: 'Синхронизация', body: [h('p', { class: 'lead' }, 'В веб-версии записи пока хранятся только в этом браузере, в зашифрованном виде. Синхронизация через Google подключается следующим шагом.'),
-      h('p', { class: 'hint' }, 'Резервную копию можно сделать в меню → «Экспорт и резервная копия».')], footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Понятно')] });
-    return;
-  }
   const body = h('div', { class: 'sync-body' });
   const m = modal({ title: 'Синхронизация между устройствами', body, footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
   const draw = async () => {
@@ -697,7 +694,7 @@ function openSyncDialog() {
     if (!s.enabled) {
       body.append(
         h('p', { class: 'lead' }, 'Вход через Google подключит облачную копию. В облако уходит только зашифрованное содержимое: названия, адреса, логины и пароли расшифровываются мастер-паролем только у вас.'),
-        h('ul', { class: 'bullets' }, h('li', {}, 'На втором устройстве установите расширение, нажмите «Уже есть в Google» и введите тот же мастер-пароль.'), h('li', {}, 'Правки с разных устройств сливаются автоматически, побеждает более поздняя.')));
+        h('ul', { class: 'bullets' }, h('li', {}, 'На втором устройстве откройте сайт или расширение, нажмите «Уже есть в Google» и введите тот же мастер-пароль.'), h('li', {}, 'Правки с разных устройств сливаются автоматически, побеждает более поздняя.')));
       const b = h('button', { class: 'btn primary', onclick: async () => {
         b.disabled = true; b.textContent = 'Подключаю…'; msg.textContent = '';
         try { await sync.enableSync(); toast('Синхронизация включена'); } catch (e) { msg.textContent = describeSyncError(e); }
@@ -707,6 +704,11 @@ function openSyncDialog() {
     } else {
       body.append(
         h('dl', { class: 'kv' }, h('dt', {}, 'Аккаунт'), h('dd', {}, s.email || '—'), h('dt', {}, 'Последняя синхронизация'), h('dd', {}, s.lastSync ? new Date(s.lastSync).toLocaleString('ru-RU') : 'ещё не было')));
+      const gr = h('input', { type: 'checkbox', checked: s.googleRecovery !== false, onchange: async () => {
+        try { await sync.setGoogleRecovery(gr.checked); toast(gr.checked ? 'Сброс через Google включён' : 'Сброс через Google выключен'); } catch (e) { toast(describeSyncError(e), 'warn'); }
+      } });
+      body.append(h('label', { class: 'inline check' }, gr, 'Разрешить сброс мастер-пароля через вход Google'),
+        h('p', { class: 'hint' }, 'Если выключить, пароль можно сбросить только по ключу восстановления. Если включено, тот, кто получит доступ к вашему аккаунту Google, сможет открыть хранилище.'));
       if (s.lastError) body.append(h('p', { class: 'form-msg' }, describeSyncError({ code: s.lastError.split(':')[0], message: s.lastError })));
       const row = h('div', { class: 'row' });
       const now = h('button', { class: 'btn primary', onclick: async () => {
@@ -739,11 +741,73 @@ function describeSyncError(e) {
   return msg || 'Неизвестная ошибка синхронизации';
 }
 
+// ───────────────────────── восстановление доступа ─────────────────────────
+function showRecoveryKey(rk, intro) {
+  const ok = h('input', { type: 'checkbox' });
+  const done = h('button', { class: 'btn primary', disabled: true, onclick: () => m.close() }, 'Готово');
+  ok.addEventListener('change', () => { done.disabled = !ok.checked; });
+  const m = modal({ title: 'Ключ восстановления',
+    body: [h('p', { class: 'lead' }, intro || 'Если забудете мастер-пароль, этот ключ поможет задать новый. Сохраните его в надёжном месте: в другом менеджере паролей, на бумаге или в личных заметках. Показывается один раз.'),
+      h('div', { class: 'rkbox' }, rk),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn', onclick: () => copy(rk, 'Ключ скопирован') }, icon('copy', 15), 'Копировать'),
+        h('button', { class: 'btn', onclick: () => download('vaultboard-recovery-key.txt', `Vaultboard. Ключ восстановления\n${rk}\n\nХраните отдельно от мастер-пароля.\n`, 'text/plain') }, icon('download', 15), 'Скачать файлом')),
+      h('label', { class: 'inline check' }, ok, 'Я сохранил ключ')],
+    footer: [done] });
+}
+
+async function renewRecovery() {
+  if (!(await confirmBox('Создать новый ключ восстановления? Прежний ключ перестанет работать.', 'Создать', false))) return;
+  try { const r = await sync.createRecoveryKey(); S.env = r.env; showRecoveryKey(r.rk); } catch (e) { toast(describeSyncError(e), 'warn'); }
+}
+
+function openForgot() {
+  const msg = h('p', { class: 'form-msg', role: 'alert' });
+  const m = modal({ title: 'Не помню мастер-пароль', body: [], footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена')] });
+  const run = (btn, fn) => async () => {
+    btn.disabled = true; msg.textContent = '';
+    try { const rec = await fn(); const data = await sync.dataForKey(rec.key, rec.auth); m.close(); askNewPassword(data, rec.auth); }
+    catch (e) { msg.textContent = describeSyncError(e); btn.disabled = false; }
+  };
+  const gbtn = h('button', { class: 'btn wide', type: 'button' }, icon('cloud', 16), 'Войти через Google');
+  gbtn.onclick = run(gbtn, () => sync.recoverWithGoogle());
+  const rkIn = h('input', { type: 'text', placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX', autocomplete: 'off', spellcheck: 'false' });
+  const rbtn = h('button', { class: 'btn wide', type: 'button' }, icon('key', 16), 'Использовать ключ');
+  rbtn.onclick = run(rbtn, () => { if (!rkIn.value.trim()) throw Object.assign(new Error('Введите ключ восстановления'), { code: 'X' }); return sync.recoverWithKey(rkIn.value); });
+  m.box.querySelector('.mbody').append(
+    h('p', { class: 'lead' }, 'Сам мастер-пароль восстановить нельзя, но можно задать новый. Записи при этом сохранятся. Нужен один из двух способов.'),
+    h('div', { class: 'field' }, h('span', {}, 'Способ 1. Аккаунт Google'), h('p', { class: 'hint' }, 'Войдите той же почтой, с которой включали синхронизацию.'), gbtn),
+    h('div', { class: 'field' }, h('span', {}, 'Способ 2. Ключ восстановления'), rkIn, rbtn),
+    msg,
+    S.env ? h('button', { class: 'link-btn', type: 'button', onclick: async () => {
+      if (await confirmBox('Хранилище будет стёрто на этом устройстве. Копия в облаке (если синхронизация была включена) останется. Продолжить?', 'Стереть на этом устройстве')) { m.close(); await st.wipeAll(); S.env = null; renderSetup(); }
+    } }, 'Ничего нет: стереть хранилище на этом устройстве') : null);
+}
+
+function askNewPassword(data, auth) {
+  const msg = h('p', { class: 'form-msg', role: 'alert' });
+  const save = h('button', { class: 'btn primary', onclick: async () => {
+    const p1 = $('#npw1').value, p2 = $('#npw2').value;
+    if (p1.length < 8) return (msg.textContent = 'Мастер-пароль должен быть не короче 8 символов.');
+    if (p1 !== p2) return (msg.textContent = 'Пароли не совпадают.');
+    save.disabled = true; save.textContent = 'Сохраняю…'; msg.textContent = '';
+    try {
+      const r = await sync.resetPassword(data, p1, auth);
+      S.env = r.env; m.close(); await enter(r.key); toast('Новый мастер-пароль задан');
+      showRecoveryKey(r.rk, 'Старый ключ восстановления больше не действует. Сохраните новый.');
+    } catch (e) { msg.textContent = 'Не удалось сменить пароль: ' + (e.message || e); save.disabled = false; save.textContent = 'Сохранить'; }
+  } }, 'Сохранить');
+  const m = modal({ title: 'Новый мастер-пароль',
+    body: [h('p', { class: 'lead' }, 'Доступ подтверждён. Задайте новый мастер-пароль: им будут шифроваться записи. На других устройствах его понадобится ввести заново.'),
+      pwField('Новый мастер-пароль', 'npw1', { autofocus: true, autocomplete: 'new-password' }), pwField('Повторите пароль', 'npw2', { autocomplete: 'new-password' }), msg],
+    footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), save] });
+}
+
 // ───────────────────────── настройки, импорт, экспорт ─────────────────────────
 function openSettings() {
   const lock = h('select', {}, [[0, 'Не блокировать'], [5, '5 минут'], [15, '15 минут'], [30, '30 минут'], [60, '1 час'], [240, '4 часа']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.autolockMin }, l)));
   const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
-  const theme = h('select', {}, [['pearl', 'Жемчуг (светлая, 3D)'], ['peach', 'Персик (светлая, 3D)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
+  const theme = h('select', {}, [['pearl', 'Жемчуг (светлая, 3D)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
   const m = modal({ title: 'Настройки',
     body: [h('label', { class: 'field' }, h('span', {}, 'Блокировать после бездействия'), lock),
       h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),

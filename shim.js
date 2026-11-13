@@ -13,10 +13,8 @@
       async clear() { store.removeItem(prefix); },
     };
   };
-  const mem = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
-  const safe = (name) => { try { const s = window[name]; s.setItem('__t', '1'); s.removeItem('__t'); return s; } catch { return mem(); } };
-  const local = area(safe('localStorage'), 'vaultboard.local', 'local');
-  const session = area(safe('sessionStorage'), 'vaultboard.session', 'session');
+  const local = area(localStorage, 'vaultboard.local', 'local');
+  const session = area(sessionStorage, 'vaultboard.session', 'session');
   // изменения из другой вкладки
   addEventListener('storage', (e) => {
     if (e.key !== 'vaultboard.local') return;
@@ -30,11 +28,28 @@
     const { prefs } = await local.get('prefs'); const min = prefs?.autolockMin ?? 15;
     if (min > 0) lockTimer = setTimeout(() => session.remove('key'), min * 60 * 1000);
   };
+  // В вебе нет фонового процесса: синхронизацию запускаем прямо на странице и сообщаем интерфейсу об изменениях.
+  let syncTimer = 0;
+  const runSync = async () => {
+    const keys = ['envelope', 'sync'];
+    const before = await local.get(keys);
+    let result, error;
+    try { result = await (await import('./lib/sync.js')).syncNow(); } catch (e) { error = e; }
+    const after = await local.get(keys);
+    const ch = {};
+    for (const k of keys) if (JSON.stringify(before[k]) !== JSON.stringify(after[k])) ch[k] = { oldValue: before[k], newValue: after[k] };
+    if (Object.keys(ch).length) fire(ch, 'local');
+    if (error) throw error;
+    return result;
+  };
+  setInterval(() => runSync().catch(() => {}), 3 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) runSync().catch(() => {}); });
   const handle = async (msg) => {
     switch (msg?.cmd) {
       case 'touch': await touch(); return { ok: true };
       case 'lock': clearTimeout(lockTimer); return { ok: true };
-      case 'syncSoon': case 'syncNow': return { ok: false, error: 'WEB' };
+      case 'syncSoon': clearTimeout(syncTimer); syncTimer = setTimeout(() => runSync().catch(() => {}), 2500); return { ok: true };
+      case 'syncNow': try { return { ok: true, result: await runSync() }; } catch (e) { return { ok: false, error: e.message, code: e.code }; }
       default: return { ok: false };
     }
   };
