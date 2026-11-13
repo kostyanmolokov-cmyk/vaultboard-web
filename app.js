@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606652';
-import * as fb from './lib/firebase.js?v=1794606652';
-import * as st from './lib/store.js?v=1794606652';
-import * as sync from './lib/sync.js?v=1794606652';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606652';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606652';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606652';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606652';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794606959';
+import * as fb from './lib/firebase.js?v=1794606959';
+import * as st from './lib/store.js?v=1794606959';
+import * as sync from './lib/sync.js?v=1794606959';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794606959';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794606959';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794606959';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794606959';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -401,15 +401,21 @@ function faviconUrl(pageUrl) {
 }
 
 function itemRow(i) {
-  const glyph = h('span', { class: 'fav glyph ' + i.type }, icon(TYPE_ICON[i.type], 15));
-  let fav = glyph;
-  if (IS_WEB && i.url && i.type !== 'note') {
-    const nm = (i.title || hostOf(i.url) || '?').trim(); let hue = 0; for (const ch of hostOf(i.url) || nm) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
-    fav = h('span', { class: 'fav letter', style: { '--hue': String(hue) } }, nm.charAt(0).toUpperCase());
-  } else if (i.url && i.type !== 'note') {
-    const img = h('img', { class: 'fav', alt: '', loading: 'lazy', src: faviconUrl(normalizeUrl(i.url)) });
-    img.addEventListener('error', () => img.replaceWith(glyph));
-    fav = img;
+  // значок: настоящий фавикон сайта, а если адреса нет или значок не загрузился, буква названия на градиенте в тон теме
+  let fav;
+  if (i.type === 'note') fav = h('span', { class: 'fav glyph note' }, icon(TYPE_ICON.note, 18));
+  else {
+    const host = hostOf(i.url), nm = (i.title || host || '?').trim().replace(/^www\./, '');
+    let hue = 0; for (const ch of host || nm) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
+    const letter = h('span', { class: 'fav letter', style: { '--hue': String(hue) } }, (nm.match(/[\p{L}\p{N}]/u)?.[0] || '?').toUpperCase());
+    fav = letter;
+    if (i.url && host && (!IS_WEB || S.prefs.favicons !== false)) {
+      const src = IS_WEB ? `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent('https://' + host)}&size=64` : faviconUrl(normalizeUrl(i.url));
+      const img = h('img', { class: 'fav fav-img', alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', src });
+      img.addEventListener('error', () => img.replaceWith(letter));
+      img.addEventListener('load', () => { if (img.naturalWidth <= 16) img.replaceWith(letter); // 16 px у Google = заглушка-глобус });
+      fav = img;
+    }
   }
   const sub = i.type === 'login' ? i.username : i.type === 'link' ? hostOf(i.url) : (i.notes || '').split('\n')[0];
   const qv = i.type === 'login' ? i.password : i.type === 'link' ? normalizeUrl(i.url) : (i.notes || '');
@@ -855,14 +861,16 @@ function openSettings() {
   const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
   const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
   const theme = h('select', {}, [['pearl', 'Жемчуг (цвет меняется по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
+  const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
   const m = modal({ title: 'Настройки',
     body: [h('div', { class: 'field' }, h('label', { class: 'inline check' }, lockOn, 'Блокировать при бездействии'), lockRow),
       h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
       h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
+      IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
       h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.')],
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: async () => {
-      await st.setPrefs({ autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value });
-      S.prefs = await st.getPrefs(); applyTheme(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
+      await st.setPrefs({ autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked });
+      S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
     } }, 'Сохранить')] });
 }
 

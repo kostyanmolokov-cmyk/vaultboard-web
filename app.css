@@ -641,3 +641,21 @@ html[data-look] .group-add:hover::before { opacity: 1; transform: scale(1); }
 html[data-look] .group-add:hover svg { transform: rotate(90deg) scale(1.1); }
 @media (prefers-reduced-motion: reduce) { .orbs i { animation: none; translate: none; scale: none; } .board.enter .group, .board.enter .item, .board.enter .group-add { animation: none; } html { transition: none; } }
 .lockrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .lockrow.off { opacity: .5; } .lockrow .num { width: 84px; } .lockrow .chip { cursor: pointer; }
+
+/* ───── сетка: группы в 2 колонки, компактные карточки, «+ Новая группа» карточкой ───── */
+html[data-look] .board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; columns: auto; max-width: 1320px; padding-top: 4px; }
+@media (min-width: 1100px) { html[data-look] .board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+html[data-look] .board > .group, html[data-look] .board > .group-add { margin: 0; } html[data-look] .board > .empty { margin: 0 auto; }
+html[data-look] .board > .empty { grid-column: 1 / -1; }
+html[data-look] .glist { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 16px 10px; }
+html[data-look] .item { min-height: 62px; padding: 10px 12px; column-gap: 11px; grid-template-columns: 38px minmax(0, 1fr); border-radius: 16px; }
+html[data-look] .item .fav { width: 38px; height: 38px; border-radius: 12px; }
+html[data-look] .group-add { width: 100%; height: auto; min-height: 118px; margin: 0; flex-direction: column; gap: 10px; border-radius: 26px; font-weight: 500; }
+html[data-look] .group-add svg { width: 26px; height: 26px; padding: 7px; box-sizing: content-box; border-radius: 50%; background: color-mix(in srgb, var(--accent) 12%, #fff); color: var(--accent); }
+@media (max-width: 1099px) { html[data-look] .group-add { min-height: 72px; flex-direction: row; } }
+@media (max-width: 600px) { html[data-look] .board { gap: 14px; } html[data-look] .item { grid-template-columns: 38px minmax(0, 1fr) auto; } }
+
+/* значки: настоящий фавикон на белой подложке или буква на градиенте в тон теме */
+html[data-look] .item .fav-img { background: #fff; padding: 7px; box-shadow: 0 2px 8px rgba(40, 30, 90, .14), 0 0 0 1px rgba(110, 100, 190, .12); }
+html[data-look] .fav.letter { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .22);
+  background: linear-gradient(150deg, color-mix(in srgb, hsl(var(--hue) 80% 68%) 58%, var(--p-o1l, #bda9ff)), color-mix(in srgb, hsl(var(--hue) 66% 46%) 56%, var(--p-o1d, #4a2fd0))); box-shadow: 0 4px 10px -3px color-mix(in srgb, hsl(var(--hue) 70% 50%) 40%, transparent), inset 0 1px 0 rgba(255, 255, 255, .45); }

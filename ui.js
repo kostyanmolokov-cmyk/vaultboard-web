@@ -214,19 +214,19 @@ export function vaultArt(size = 56) {
 }
 
 const ORB = `<defs>
-<radialGradient id="ob-s" cx=".34" cy=".26" r=".95"><stop offset="0" stop-color="#fff"/><stop offset=".12" stop-color="#f1ecff"/><stop offset=".4" stop-color="#b9a4ff"/><stop offset=".78" stop-color="#6f50f0"/><stop offset="1" stop-color="#3c24b8"/></radialGradient>
-<linearGradient id="ob-r" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffd0ec"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" stop-color="#bfe3ff"/></linearGradient>
+<radialGradient id="ob-s" cx=".34" cy=".26" r=".95"><stop offset="0" stop-color="#fff"/><stop offset=".12" style="stop-color:color-mix(in srgb, var(--p-o1l) 22%, #fff)"/><stop offset=".4" style="stop-color:var(--p-o1l)"/><stop offset=".78" style="stop-color:var(--p-o1m)"/><stop offset="1" style="stop-color:var(--p-o1d)"/></radialGradient>
+<linearGradient id="ob-r" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color:var(--p-o2l)"/><stop offset=".5" stop-color="#ffffff"/><stop offset="1" style="stop-color:var(--p-o3l)"/></linearGradient>
 <radialGradient id="ob-h" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-<linearGradient id="ob-k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a1a86"/><stop offset="1" stop-color="#150b55"/></linearGradient>
+<linearGradient id="ob-k" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:color-mix(in srgb, var(--p-o1d) 62%, #000)"/><stop offset="1" style="stop-color:color-mix(in srgb, var(--p-o1d) 36%, #000)"/></linearGradient>
 <clipPath id="ob-front"><rect x="0" y="108" width="200" height="100"/></clipPath>
 <filter id="ob-bl"><feGaussianBlur stdDeviation="2.2"/></filter>
 </defs>
-<ellipse cx="100" cy="176" rx="52" ry="8" fill="#3a1fa8" opacity=".25" filter="url(#ob-bl)"/>
+<ellipse cx="100" cy="176" rx="52" ry="8" style="fill:var(--p-o1d)" opacity=".28" filter="url(#ob-bl)"/>
 <ellipse cx="100" cy="104" rx="88" ry="24" transform="rotate(-16 100 104)" fill="none" stroke="url(#ob-r)" stroke-width="8" opacity=".95"/>
 <circle cx="100" cy="98" r="58" fill="url(#ob-s)"/>
 <circle cx="100" cy="98" r="58" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="1"/>
 <ellipse cx="78" cy="68" rx="24" ry="14" transform="rotate(-32 78 68)" fill="url(#ob-h)"/>
-<path d="M146 126a58 58 0 0 1-70 28" fill="none" stroke="#ffb8e0" stroke-opacity=".55" stroke-width="5" stroke-linecap="round" filter="url(#ob-bl)"/>
+<path d="M146 126a58 58 0 0 1-70 28" fill="none" style="stroke:var(--p-o2l)" stroke-opacity=".6" stroke-width="5" stroke-linecap="round" filter="url(#ob-bl)"/>
 <g clip-path="url(#ob-front)"><ellipse cx="100" cy="104" rx="88" ry="24" transform="rotate(-16 100 104)" fill="none" stroke="url(#ob-r)" stroke-width="8"/></g>
 <g transform="translate(100 100)"><circle cx="0" cy="-5" r="10" fill="url(#ob-k)"/><path d="M-4.5 2h9l3 19h-15z" fill="url(#ob-k)"/>
 <circle cx="-3" cy="-8" r="3" fill="#fff" opacity=".25"/><path d="M-9 -12a10 10 0 0 1 12-4" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/></g>`;
