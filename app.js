@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794608321';
-import * as fb from './lib/firebase.js?v=1794608321';
-import * as st from './lib/store.js?v=1794608321';
-import * as sync from './lib/sync.js?v=1794608321';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794608321';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794608321';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794608321';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794608321';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794650796';
+import * as fb from './lib/firebase.js?v=1794650796';
+import * as st from './lib/store.js?v=1794650796';
+import * as sync from './lib/sync.js?v=1794650796';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794650796';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794650796';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794650796';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794650796';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.8.0' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.8.1' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -922,6 +922,7 @@ function openSettings() {
       h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
       IS_WEB ? null : h('label', { class: 'inline check' }, autoOn, 'Автоматически подставлять логин и пароль на любых сайтах из хранилища'),
       IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
+      IS_WEB ? null : h('button', { type: 'button', class: 'btn', onclick: openAutofillLog }, 'Проверить автозаполнение'),
       h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.'),
       h('p', { class: 'hint' }, IS_WEB ? `Веб-версия. Актуальная версия расширения: ${EXT_VERSION}.` : `Установлена версия расширения: ${EXT_VERSION}.`)],
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Отмена'), h('button', { class: 'btn primary', onclick: async () => {
@@ -933,6 +934,25 @@ function openSettings() {
       await st.setPrefs({ autofill: autoOn.checked, autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked });
       S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
     } }, 'Сохранить')] });
+}
+
+async function openAutofillLog() {
+  let all = false;
+  try { all = await chrome.permissions.contains({ origins: ALL_SITES }); } catch { /* ignore */ }
+  const { aflog = [] } = await chrome.storage.local.get('aflog');
+  const logins = liveItems(S.data).filter((i) => i.type === 'login');
+  const state = [
+    ['Доступ ко всем сайтам', all ? 'выдан' : 'НЕ выдан (нажмите «Разрешить» на главном экране)'],
+    ['Автозаполнение при открытии', S.prefs.autofill === false ? 'выключено' : 'включено'],
+    ['Записей с паролем', String(logins.filter((i) => i.password).length) + ' из ' + logins.length],
+    ['Версия расширения', EXT_VERSION],
+  ];
+  const fmt = (t) => new Date(t).toLocaleTimeString('ru-RU');
+  const m = modal({ title: 'Проверка автозаполнения',
+    body: [h('div', { class: 'maplist' }, ...state.map(([a, b]) => h('div', { class: 'maprow' }, h('strong', {}, a), h('p', {}, b)))),
+      h('p', { class: 'hint' }, aflog.length ? 'Последние попытки (пароли здесь не показываются):' : 'Попыток пока не было. Откройте любую карточку и вернитесь сюда.'),
+      ...aflog.slice().reverse().map((e) => h('div', { class: 'maprow' }, h('strong', {}, `${fmt(e.t)} · ${e.host || ''}`), h('p', {}, `${e.how}: ${e.step}`)))],
+    footer: [h('button', { class: 'btn primary', onclick: () => m.close() }, 'Закрыть')] });
 }
 
 function openImport() {
