@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794650796';
-import * as fb from './lib/firebase.js?v=1794650796';
-import * as st from './lib/store.js?v=1794650796';
-import * as sync from './lib/sync.js?v=1794650796';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794650796';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794650796';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794650796';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794650796';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794651620';
+import * as fb from './lib/firebase.js?v=1794651620';
+import * as st from './lib/store.js?v=1794651620';
+import * as sync from './lib/sync.js?v=1794651620';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794651620';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794651620';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794651620';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794651620';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.8.1' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -23,10 +23,24 @@ const S = {
 const TYPE_LABEL = { login: 'Логин', link: 'Ссылка', note: 'Заметка' };
 const TYPE_ICON = { login: 'key', link: 'link', note: 'note' };
 
+// подсветка под курсором: позиция мыши внутри карточки и пунктов сайдбара
+let spotRaf = 0;
+document.addEventListener('pointermove', (e) => {
+  if (spotRaf || e.pointerType === 'touch') return;
+  const t = e.target.closest?.('.group, .tab, .frow, .tab-add, .item, .group-add');
+  if (!t) return;
+  spotRaf = requestAnimationFrame(() => {
+    spotRaf = 0;
+    const r = t.getBoundingClientRect();
+    t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  });
+}, { passive: true });
+
 // ───────────────────────── запуск ─────────────────────────
 async function boot() {
   if (IS_WEB) fb.warmup();
   S.prefs = await st.getPrefs();
+  if (!S.prefs.designV3) { await st.setPrefs({ scene: 'night', designV3: true }); S.prefs = await st.getPrefs(); } // новый тёмный дизайн по умолчанию
   S.ui = await st.getUi();
   applyTheme();
   S.env = await st.loadEnvelope();
@@ -37,8 +51,8 @@ async function boot() {
 }
 
 function applyTheme() {
-  const sc = S.prefs.scene || 'pearl', d = document.documentElement.dataset;
-  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
+  const sc = S.prefs.scene || 'night', d = document.documentElement.dataset;
+  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : sc === 'night' ? 'night' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
   applyPalette();
 }
 
@@ -258,6 +272,7 @@ async function selectSpace(id) {
   S.spaceId = id; S.tag = null;
   S.ui.lastSpace = id; st.setUi({ lastSpace: id });
   S.animate = true;
+  const hero = document.querySelector('.hero'); if (hero) { hero.classList.remove('fade'); void hero.offsetWidth; hero.classList.add('fade'); }
   renderTabs(); renderFilters(); renderBoard();
 }
 
@@ -389,6 +404,7 @@ function groupCard(g, list, spaceName, filtering) {
   const el = h('section', { class: 'group' + (collapsed ? ' collapsed' : ''), dataset: { id: g.id }, style: { '--c': g.color || GROUP_COLORS[0] },
     ondragover: (e) => groupDragOver(e, el, g), ondragleave: () => el.classList.remove('drop-before', 'drop-after'),
     ondrop: (e) => groupDrop(e, el, g) });
+  el.append(h('i', { class: 'spot', 'aria-hidden': 'true' })); // подсветка рамки под курсором
   const grip = h('span', { class: 'grip', title: 'Перетащить группу', draggable: true,
     ondragstart: (e) => { S.drag = { type: 'group', id: g.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', g.id); e.dataTransfer.setDragImage(el, 16, 16); el.classList.add('dragging'); },
     ondragend: () => { S.drag = null; document.querySelectorAll('.dragging,.drop-before,.drop-after').forEach((n) => n.classList.remove('dragging', 'drop-before', 'drop-after')); } }, icon('grip', 16));
@@ -408,8 +424,24 @@ function groupCard(g, list, spaceName, filtering) {
 }
 
 async function toggleGroup(g) {
-  S.ui.collapsed = { ...(S.ui.collapsed || {}), [g.id]: !S.ui.collapsed?.[g.id] };
-  st.setUi({ collapsed: S.ui.collapsed }); renderBoard();
+  const was = !!S.ui.collapsed?.[g.id];
+  S.ui.collapsed = { ...(S.ui.collapsed || {}), [g.id]: !was };
+  st.setUi({ collapsed: S.ui.collapsed });
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sel = `.group[data-id="${CSS.escape(g.id)}"]`;
+  const el0 = document.querySelector(sel);
+  const list0 = el0?.querySelector('.glist');
+  if (calm || !el0) return renderBoard();
+  if (!was && list0) { // сворачиваем: высота и прозрачность до нуля, потом перерисовка
+    el0.classList.add('collapsed'); el0.querySelector('.gname')?.setAttribute('aria-expanded', 'false');
+    list0.classList.add('anim');
+    const a = list0.animate([{ height: list0.offsetHeight + 'px', opacity: 1 }, { height: '0px', opacity: 0, paddingTop: '0px', paddingBottom: '0px' }], { duration: 240, easing: 'ease-out', fill: 'forwards' });
+    a.onfinish = a.oncancel = () => renderBoard();
+    return;
+  }
+  renderBoard(); // разворачиваем: после перерисовки раскрываем список
+  const list = document.querySelector(sel + ' .glist');
+  if (list) { list.classList.add('anim'); list.animate([{ height: '0px', opacity: 0 }, { height: list.scrollHeight + 'px', opacity: 1 }], { duration: 260, easing: 'ease-out' }).onfinish = () => list.classList.remove('anim'); }
 }
 
 function faviconUrl(pageUrl) {
@@ -913,7 +945,7 @@ function openSettings() {
   lockOn.addEventListener('change', syncLock); syncLock();
   const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
   const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
-  const theme = h('select', {}, [['pearl', 'Жемчуг (цвет меняется по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'pearl') }, l)));
+  const theme = h('select', {}, [['night', 'Ночь (тёмная, стекло)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'night') }, l)));
   const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
   const autoOn = h('input', { type: 'checkbox', checked: S.prefs.autofill !== false });
   const m = modal({ title: 'Настройки',
