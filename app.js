@@ -1,14 +1,16 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794675973';
-import * as fb from './lib/firebase.js?v=1794675973';
-import * as st from './lib/store.js?v=1794675973';
-import * as sync from './lib/sync.js?v=1794675973';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794675973';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794675973';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794675973';
-import { cleanTitle } from './lib/text.js?v=1794675973';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794675973';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794675973';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794689215';
+import * as fb from './lib/firebase.js?v=1794689215';
+import * as st from './lib/store.js?v=1794689215';
+import * as sync from './lib/sync.js?v=1794689215';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794689215';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794689215';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794689215';
+import { cleanTitle } from './lib/text.js?v=1794689215';
+import { createIsland } from './island.js?v=1794689215';
+import { crystal3d, currentItem } from './fx.js?v=1794689215';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794689215';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794689215';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -17,7 +19,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.10' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.10.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -54,7 +56,8 @@ async function boot() {
 
 function applyTheme() {
   const sc = S.prefs.scene || 'night', d = document.documentElement.dataset;
-  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : sc === 'night' || sc === 'nova' ? 'night' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
+  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' || sc === 'island' ? 'pearl' : sc === 'night' || sc === 'nova' ? 'night' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
+  if (sc === 'island') d.layout = 'island'; else delete d.layout;
   applyPalette();
   syncNova();
 }
@@ -96,6 +99,7 @@ function applyPalette() {
   if (d.scene === 'nova') { d.nv = novaTone(); nova?.retone(); } else delete d.nv;
   if (d.look !== 'pearl') { delete d.pal; return; }
   if (d.scene === 'peach') { d.pal = 'peach'; return; }
+  if (d.scene === 'island') { delete d.pal; return; }
   const i = S.data ? liveSpaces(S.data).findIndex((s) => s.id === S.spaceId) : 0;
   d.pal = PALETTES[(i < 0 ? 0 : i) % PALETTES.length];
 }
@@ -251,7 +255,7 @@ function renderApp() {
         h('button', { class: 'frow nv-only', id: 'sfx-btn', onclick: toggleSfx }))),
     h('section', { class: 'main' },
       h('header', { class: 'top' },
-        h('label', { class: 'search' }, icon('search', 15),
+        h('label', { class: 'search' }, h('i', { class: 'beam', 'aria-hidden': 'true' }), icon('search', 15),
           h('input', { id: 'q', type: 'search', placeholder: 'Поиск по всем записям', autocomplete: 'off', 'aria-label': 'Поиск', oninput: (e) => { S.q = e.target.value; renderBoard(); renderFilters(); },
             onkeydown: (e) => {
               if (e.key === 'Escape') { e.target.value = ''; S.q = ''; renderBoard(); renderFilters(); e.target.blur(); }
@@ -261,14 +265,19 @@ function renderApp() {
           h('button', { class: 'btn primary', id: 'add-btn', onclick: (e) => addMenu(e.currentTarget) }, icon('plus', 15), 'Добавить'))),
       h('div', { class: 'hero' }, h('h1', { id: 'crumb' }), h('p', { id: 'hsub' })),
       h('nav', { id: 'gnav', class: 'gnav', 'aria-label': 'Группы', hidden: true }),
-      h('main', { id: 'board', class: 'board' }))));
+      h('main', { id: 'board', class: 'board' }))), h('div', { id: 'island', class: 'isl' }));
+  isl.mount($('#island'));
   renderAll();
   renderSfxBtn();
 }
 
 function renderAll() { renderTabs(); renderFilters(); renderBoard(); renderSyncBadge(); }
+const islandOn = () => document.documentElement.dataset.layout === 'island';
+let islPending = false;
+function renderIsland() { if (!islandOn() || islPending) return; islPending = true; queueMicrotask(() => { islPending = false; if (islandOn() && S.data) isl.render(); }); }
 
 function renderSyncBadge() {
+  if (islandOn()) isl.refreshSync();
   const b = $('#sync-btn'); if (!b) return;
   const s = S.sync || {};
   b.dataset.state = !s.enabled ? 'off' : s.lastError ? 'error' : 'ok';
@@ -428,6 +437,7 @@ function renderBoard() {
     board.append(card);
   }
   renderGroupNav(groups, counts, filtering);
+  renderIsland();
   if (!board.children.length) board.append(emptyState(global, groups.length === 0 && !filtering));
   else if (!filtering) board.append(h('button', { class: 'group-add', style: { '--gi': String(Math.min(gi, 8)) }, onclick: () => groupDialog() }, icon('plus', 16), 'Новая группа'));
 }
@@ -458,12 +468,12 @@ function jumpToGroup(g) {
 }
 
 function emptyState(global, noGroups) {
-  if (global) return h('div', { class: 'empty' }, vaultArt(110), h('p', { class: 'empty-title' }, 'Ничего не найдено'), h('p', {}, `По запросу «${S.q.trim()}» нет записей. Проверьте написание или очистите фильтры.`));
-  if (noGroups) return h('div', { class: 'empty' }, vaultArt(170),
+  if (global) return h('div', { class: 'empty' }, vaultArt(110), crystal3d(), h('p', { class: 'empty-title' }, 'Ничего не найдено'), h('p', {}, `По запросу «${S.q.trim()}» нет записей. Проверьте написание или очистите фильтры.`));
+  if (noGroups) return h('div', { class: 'empty' }, vaultArt(170), crystal3d(),
     h('p', { class: 'empty-title' }, 'В этом пространстве пока нет групп'),
     h('p', {}, 'Создайте группу и добавьте в неё логины, ссылки и заметки. Либо импортируйте закладки или пароли из файла.'),
     h('div', { class: 'row' }, h('button', { class: 'btn primary', onclick: () => groupDialog() }, icon('plus', 16), 'Создать группу'), h('button', { class: 'btn', onclick: openImport }, icon('upload', 16), 'Импортировать')));
-  return h('div', { class: 'empty' }, vaultArt(110), h('p', { class: 'empty-title' }, 'Нет записей с такими фильтрами'), h('button', { class: 'btn', onclick: () => { S.type = 'all'; S.tag = null; renderFilters(); renderBoard(); } }, 'Сбросить фильтры'));
+  return h('div', { class: 'empty' }, vaultArt(110), crystal3d(), h('p', { class: 'empty-title' }, 'Нет записей с такими фильтрами'), h('button', { class: 'btn', onclick: () => { S.type = 'all'; S.tag = null; renderFilters(); renderBoard(); } }, 'Сбросить фильтры'));
 }
 
 function groupCard(g, list, spaceName, filtering) {
@@ -483,7 +493,7 @@ function groupCard(g, list, spaceName, filtering) {
     h('button', { class: 'icon-btn sm', title: 'Действия с группой', 'aria-label': 'Действия с группой', onclick: (e) => groupMenu(e.currentTarget, g) }, icon('more', 16))));
   if (!collapsed) {
     const ul = h('div', { class: 'glist', ondragover: (e) => itemDragOver(e, ul), ondragleave: (e) => { if (!ul.contains(e.relatedTarget)) clearDrop(ul); }, ondrop: (e) => itemDrop(e, ul, g.id) });
-    if (!list.length) ul.append(h('button', { class: 'gempty', onclick: () => openItemEditor(newItemFor('login', g.id), true) }, 'Пусто. Добавить первую запись'));
+    if (!list.length) ul.append(h('button', { class: 'gempty', onclick: () => openItemEditor(newItemFor('login', g.id), true) }, crystal3d('sm'), h('span', {}, 'Пусто. Добавить первую запись')));
     for (const i of list) ul.append(itemRow(i));
     el.append(ul);
   }
@@ -606,6 +616,8 @@ function itemRow(i) {
       tipBtn('iact', 'edit', 'Изменить', () => { openItemEditor(i, false); return false; }, 17),
       h('button', { type: 'button', class: 'iact star' + (i.favorite ? ' on' : ''), 'aria-label': i.favorite ? 'Убрать из избранного' : 'В избранное', 'aria-pressed': String(!!i.favorite), dataset: { tip: i.favorite ? 'Убрать из избранного' : 'В избранное' },
         onclick: async (e) => { e.preventDefault(); e.stopPropagation(); i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); } }, icon('star', 17))));
+  row.append(h('i', { class: 'spot', 'aria-hidden': 'true' }), h('i', { class: 'beam', 'aria-hidden': 'true' }));
+  if (currentItem() === i.id) row.classList.add('cur');
   return row;
 }
 
@@ -1084,7 +1096,7 @@ function openSettings() {
   lockOn.addEventListener('change', syncLock); syncLock();
   const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
   const clip = dropdown([[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']], S.prefs.clipClearSec);
-  const theme = dropdown([['night', 'Ночь (тёмная, стекло)'], ['nova', 'Нова (тёмная, 3D sci-fi, эффекты и звук)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']], S.prefs.scene || 'night');
+  const theme = dropdown([['night', 'Ночь (тёмная, стекло)'], ['nova', 'Нова (тёмная, 3D sci-fi, эффекты и звук)'], ['island', 'Остров (светлый, НОВЫЙ макет: парящая панель, инспектор, ⌘K)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']], S.prefs.scene || 'night');
   const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
   const autoOn = h('input', { type: 'checkbox', checked: S.prefs.autofill !== false });
   const sfxOn = h('input', { type: 'checkbox', checked: S.prefs.sfx !== false });
@@ -1199,10 +1211,37 @@ function openExport() {
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
 }
 
+
+// ───── макет «Остров» (island.js): данные и действия отдаём модулю через ctx ─────
+async function toggleFav(i) { i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); }
+function setCollapsed(groups, v) {
+  const c = { ...(S.ui.collapsed || {}) };
+  for (const g of groups) c[g.id] = v;
+  S.ui.collapsed = c; st.setUi({ collapsed: c });
+  renderBoard();
+}
+function itemIcon(i) {
+  if (i.type === 'note') return h('span', { class: 'fav glyph note' }, icon(TYPE_ICON.note, 18));
+  const host = hostOf(i.url), nm = (cleanTitle(i.title) || host || '?').replace(/^www\./, '');
+  let hue = 0; for (const ch of host || nm) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
+  const letter = h('span', { class: 'fav letter', style: { '--hue': String(hue) } }, (nm.match(/[\p{L}\p{N}]/u)?.[0] || '?').toUpperCase());
+  if (i.url && host && S.prefs.favicons !== false) {
+    if (iconUsable(i)) return iconImg(i, host, i.icon, letter);
+    if (iconPending(i)) queueIcon(i, host, letter);
+  }
+  return letter;
+}
+const isl = createIsland({
+  S, liveItems, liveGroups, liveSpaces, itemsInSpace, cleanTitle, hostOf, normalizeUrl, fieldsOf, tipBtn, copy, openSite, activate,
+  openItemEditor, addMenu, groupDialog, groupMenu, spaceDialog, spaceMenu, openSyncDialog, mainMenu, lockNow, selectSpace,
+  setCollapsed, toggleFav, itemIcon, setUi: (u) => st.setUi(u), renderAllNow: () => renderBoard(),
+});
+
 // ───────────────────────── глобальные события ─────────────────────────
 document.addEventListener('keydown', (e) => {
-  if (!S.key || document.querySelector('.scrim')) return;
+  if (!S.key || document.querySelector('.scrim') || isl.isOpen()) return;
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  if (islandOn() && ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k'))) { e.preventDefault(); isl.openPalette(); return; }
   if ((e.key === '/' && !typing) || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) { e.preventDefault(); $('#q')?.focus(); $('#q')?.select(); }
 });
 let lastTouch = 0;
