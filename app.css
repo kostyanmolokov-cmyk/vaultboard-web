@@ -622,7 +622,7 @@ html[data-look='pearl'] .grain { opacity: .035; mix-blend-mode: multiply; }
 
 /* быстрое копирование: выезжает справа при наведении */
 .item .quick { display: none; }
-html[data-look] .item .quick { display: grid; place-items: center; position: absolute; right: 12px; top: 50%; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer;
+html[data-look] .item .quick-old { display: grid; place-items: center; position: absolute; right: 12px; top: 50%; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer;
   background: var(--btn, var(--accent)); box-shadow: 0 8px 16px -6px var(--btn-glow, rgba(0,0,0,.4)), inset 0 1px 0 rgba(255,255,255,.4);
   opacity: 0; pointer-events: none; transform: translate(16px, -50%) scale(.8); transition: transform .32s cubic-bezier(.34, 1.56, .64, 1), opacity .18s ease-out; }
 html[data-look] .item:hover .quick, html[data-look] .item:focus-within .quick { opacity: 1; pointer-events: auto; transform: translate(0, -50%) scale(1); }
@@ -1028,3 +1028,60 @@ html[data-scene='nova'][data-look] .vault-art { color: rgb(var(--nv)); border-co
   html[data-scene='nova'][data-look] .actions { animation: none; filter: drop-shadow(0 0 5px rgb(var(--nv) / .6)); }
   html[data-scene='nova'][data-look] .board.enter .group, html[data-scene='nova'][data-look] .board.enter .item, html[data-scene='nova'][data-look] .board.enter .group-add { animation: none; }
 }
+
+/* ═════════ Полировка: быстрые действия на плитке, подсказки, поля заметок, ровные пары полей, кладка групп ═════════ */
+/* подсказка над маленькой кнопкой */
+[data-tip] { position: relative; }
+[data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translate(-50%, 4px); padding: 4px 8px; border-radius: 7px; white-space: nowrap; font: 500 11.5px/1.3 var(--font, system-ui, sans-serif);
+  background: rgba(8, 11, 20, .96); color: #E9ECF5; border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 8px 20px -8px rgba(0, 0, 0, .7); opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; z-index: 30; }
+[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); transition-delay: .25s; }
+html[data-theme='light'] [data-tip]::after { background: #2a2740; border-color: transparent; color: #fff; }
+.mbody .xfield [data-tip]::after, .mbody .inp-row [data-tip]::after { left: auto; right: 0; transform: translate(0, 4px); } .mbody .xfield [data-tip]:hover::after, .mbody .inp-row [data-tip]:hover::after { transform: none; }
+@media (hover: none) { [data-tip]::after { display: none; } }
+
+/* быстрые действия справа на плитке записи */
+.qacts { display: none; }
+html[data-look] .item .qacts { display: flex; gap: 4px; position: absolute; right: 8px; top: 50%; padding-left: 26px; opacity: 0; pointer-events: none; transform: translate(8px, -50%); transition: opacity .16s ease-out, transform .2s cubic-bezier(.2, .8, .2, 1);
+  background: linear-gradient(90deg, transparent, var(--qfade, rgba(14, 17, 28, .9)) 22px); border-radius: 0 10px 10px 0; }
+html[data-look] .item:hover .qacts, html[data-look] .item:focus-within .qacts { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+html[data-look='pearl'] .item .qacts { --qfade: rgba(255, 255, 255, .94); }
+.qbtn { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 9px; cursor: pointer; border: 1px solid var(--line-2); background: var(--raise); color: var(--ink-2); transition: background .12s, color .12s, border-color .12s, transform .12s; }
+.qbtn:hover { color: var(--accent-ink, #fff); background: var(--btn, var(--accent)); border-color: transparent; } .qbtn:active { transform: scale(.92); }
+.qbtn.done, .icon-btn.done { color: #fff; background: #23a567; border-color: transparent; }
+html[data-look='night'] .qbtn { background: rgba(20, 22, 34, .95); border-color: rgba(255, 255, 255, .12); color: #C4C8D0; } html[data-look='night'] .qbtn:hover { background: #6366F1; color: #fff; }
+html[data-scene='nova'][data-look] .qbtn { background: rgba(8, 11, 20, .92); border-color: rgb(var(--nv) / .3); color: #C9D0E0; }
+html[data-scene='nova'][data-look] .qbtn:hover { background: rgb(var(--nv)); color: #05070E; border-color: transparent; box-shadow: 0 0 14px -2px rgb(var(--nv) / .7); }
+html[data-scene='nova'][data-look] .qbtn.done, html[data-look='night'] .qbtn.done { background: #23a567; color: #fff; }
+@media (max-width: 600px), (hover: none) {
+  html[data-look] .item { grid-template-columns: 38px minmax(0, 1fr) auto auto; grid-template-areas: 'fav title q acts' 'fav sub q acts'; }
+  html[data-look] .item .qacts { position: static; grid-area: q; opacity: 1; pointer-events: auto; transform: none; padding: 0; background: none; }
+  html[data-look] .item .qbtn { width: 28px; height: 28px; border: 0; background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) { html[data-look] .item .qacts { transition: none; } }
+
+/* пары полей в окнах стоят на одной линии (раньше второе поле съезжало вниз) */
+.two { align-items: start; }
+.mbody .two > .field + .field, .two > .field + .field { margin-top: 0; }
+.inp-row > input { flex: 1; min-width: 0; }
+
+/* заметка: ячейки для копирования */
+.xfields { margin-top: 10px; } .xlist { display: grid; gap: 8px; margin-top: 6px; }
+.xfield { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) auto auto; gap: 6px; align-items: center; }
+.xadd { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; }
+@media (max-width: 520px) { .xfield { grid-template-columns: minmax(0, 1fr) auto auto; } .xfield .xname { grid-column: 1 / -1; } }
+
+/* группы кладкой в две колонки: короткая колонка добирается следующей карточкой, «Новая группа» встаёт сразу под ней */
+@media (min-width: 1100px) {
+  html[data-look] .board { display: block; columns: 2; column-gap: 20px; }
+  html[data-look] .board > .group, html[data-look] .board > .group-add { break-inside: avoid; margin: 0 0 20px; }
+  html[data-look] .board > .empty, html[data-look] .board > .afbanner { column-span: all; }
+}
+html[data-look] .group-add { min-height: 0; height: auto; padding: 22px 16px; flex-direction: row; gap: 12px; }
+
+/* «Нова»: значки на тёмной полупрозрачной подложке, буква на мягком градиенте своего оттенка */
+html[data-scene='nova'][data-look] .item .fav-img { background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .15); box-shadow: none; }
+html[data-scene='nova'][data-look] .fav.letter { border: 1px solid rgba(255, 255, 255, .15); text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  background: linear-gradient(150deg, hsl(var(--hue) 72% 62% / .85), hsl(calc(var(--hue) + 42) 64% 40% / .85)); box-shadow: 0 6px 14px -8px hsl(var(--hue) 70% 50% / .8), inset 0 1px 0 rgba(255, 255, 255, .28); }
+html[data-scene='nova'][data-look] .fav.glyph { background: rgb(var(--nv) / .14); border: 1px solid rgb(var(--nv) / .3); color: rgb(var(--nv)); box-shadow: none; }
+/* подсказка у кнопок на плитке — снизу, чтобы не прятаться под панелью «изменить / избранное» */
+.qbtn[data-tip]::after { bottom: auto; top: calc(100% + 6px); left: auto; right: 0; transform: translate(0, -4px); } .qbtn[data-tip]:hover::after, .qbtn[data-tip]:focus-visible::after { transform: none; }

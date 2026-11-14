@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794662480';
-import * as fb from './lib/firebase.js?v=1794662480';
-import * as st from './lib/store.js?v=1794662480';
-import * as sync from './lib/sync.js?v=1794662480';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794662480';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794662480';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794662480';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794662480';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794664153';
+import * as fb from './lib/firebase.js?v=1794664153';
+import * as st from './lib/store.js?v=1794664153';
+import * as sync from './lib/sync.js?v=1794664153';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794664153';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794664153';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794664153';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794664153';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.4' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.5' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -71,7 +71,7 @@ function novaTone() {
 async function syncNova() {
   const on = S.prefs?.scene === 'nova';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794662480'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794664153'); } catch (e) { console.error(e); return; }
   nova.setActive(S.prefs?.scene === 'nova', { sound: S.prefs?.sfx !== false });
   renderSfxBtn();
 }
@@ -380,7 +380,7 @@ const plural = (n, f) => `${n} ${f[n % 10 === 1 && n % 100 !== 11 ? 0 : (n % 10 
 const lc = (s) => String(s || '').toLowerCase();
 function matches(i, terms) {
   if (!terms.length) return true;
-  const hay = lc([i.title, i.url, i.username, (i.tags || []).join(' '), i.notes].join(' '));
+  const hay = lc([i.title, i.url, i.username, (i.tags || []).join(' '), i.notes, fieldsOf(i).map((x) => x.name + ' ' + x.value).join(' ')].join(' '));
   return terms.every((t) => hay.includes(t));
 }
 
@@ -485,6 +485,20 @@ function faviconUrl(pageUrl) {
   return u.toString();
 }
 
+const noFavicon = new Map(); // host → true, если своего значка у сайта нет
+const fieldsOf = (i) => (Array.isArray(i.fields) ? i.fields.filter((x) => x && (x.name || x.value)) : []);
+/** Маленькая кнопка действия: подсказка при наведении, после нажатия на секунду превращается в галочку. */
+function tipBtn(cls, ic, tip, fn, size = 15) {
+  const b = h('button', { type: 'button', class: cls, 'aria-label': tip, dataset: { tip },
+    onclick: async (e) => { e.preventDefault(); e.stopPropagation(); if ((await fn()) === false) return; b.classList.add('done'); b.replaceChildren(icon('check', size)); setTimeout(() => { b.classList.remove('done'); b.replaceChildren(icon(ic, size)); }, 1300); } }, icon(ic, size));
+  return b;
+}
+function openSite(raw) {
+  const url = normalizeUrl(raw || '');
+  if (!url) { toast('Сначала укажите адрес сайта', 'warn'); return false; }
+  if (IS_WEB) window.open(url, '_blank', 'noopener'); else chrome.tabs.create({ url });
+}
+
 function itemRow(i) {
   // значок: настоящий фавикон сайта, а если адреса нет или значок не загрузился, буква названия на градиенте в тон теме
   let fav;
@@ -500,12 +514,29 @@ function itemRow(i) {
       img.addEventListener('error', () => img.replaceWith(letter));
       img.addEventListener('load', () => { if (img.naturalWidth <= 16) img.replaceWith(letter); }); // 16 px у Google = заглушка-глобус
       fav = img;
+      if (IS_WEB) { // у сайта нет своего значка: Google отдаёт серую заглушку с кодом 404, вместо неё показываем букву
+        if (noFavicon.get(host) === true) fav = letter;
+        else if (!noFavicon.has(host)) {
+          noFavicon.set(host, false);
+          fetch(src, { referrerPolicy: 'no-referrer' }).then((r) => { if (r.status === 404) { noFavicon.set(host, true); img.replaceWith(letter); } }).catch(() => {});
+        }
+      }
     }
   }
-  const sub = i.type === 'login' ? i.username : i.type === 'link' ? hostOf(i.url) : (i.notes || '').split('\n')[0];
-  const qv = i.type === 'login' ? i.password : i.type === 'link' ? normalizeUrl(i.url) : (i.notes || '');
-  const quick = qv ? h('button', { class: 'quick', title: i.type === 'login' ? 'Скопировать пароль' : i.type === 'link' ? 'Скопировать адрес' : 'Скопировать текст', 'aria-label': 'Быстро скопировать',
-    onclick: (e) => { e.stopPropagation(); copy(qv, i.type === 'login' ? 'Пароль скопирован' : i.type === 'link' ? 'Адрес скопирован' : 'Текст скопирован', i.type === 'login'); quick.classList.add('done'); quick.replaceChildren(icon('check', 16)); setTimeout(() => { quick.classList.remove('done'); quick.replaceChildren(icon('copy', 16)); }, 1300); } }, icon('copy', 16)) : null;
+  const flds = fieldsOf(i);
+  const sub = i.type === 'login' ? i.username : i.type === 'link' ? hostOf(i.url) : ((i.notes || '').split('\n').find((l) => l.trim()) || flds.map((x) => x.name).filter(Boolean).join(' · '));
+  // быстрые действия справа: появляются при наведении
+  const q = [];
+  if (i.type === 'login') {
+    if (i.username) q.push(tipBtn('qbtn', 'user', 'Копировать логин', () => copy(i.username, 'Логин скопирован')));
+    if (i.password) q.push(tipBtn('qbtn', 'key', 'Копировать пароль', () => copy(i.password, 'Пароль скопирован', true)));
+  } else if (i.type === 'link') {
+    if (i.url) q.push(tipBtn('qbtn', 'open', 'Перейти на сайт', () => openSite(i.url)), tipBtn('qbtn', 'copy', 'Копировать адрес', () => copy(normalizeUrl(i.url), 'Адрес скопирован')));
+  } else {
+    for (const x of flds.filter((x) => x.value).slice(0, 2)) q.push(tipBtn('qbtn', 'copy', 'Копировать: ' + (x.name || 'поле'), () => copy(x.value, (x.name || 'Поле') + ': скопировано', true)));
+    if (!q.length && i.notes) q.push(tipBtn('qbtn', 'copy', 'Копировать текст', () => copy(i.notes, 'Текст скопирован')));
+  }
+  const quick = q.length ? h('span', { class: 'qacts' }, q) : null;
   const row = h('div', { class: 'item ' + i.type, dataset: { id: i.id }, draggable: true, tabindex: '0', role: 'button', 'aria-label': `${TYPE_LABEL[i.type]}: ${i.title}`,
     onclick: () => activate(i),
     onkeydown: (e) => { if (e.key === 'Enter') activate(i); },
@@ -516,8 +547,6 @@ function itemRow(i) {
     sub ? h('span', { class: 'isub' }, sub) : null,
     quick,
     h('span', { class: 'iacts' },
-      i.type === 'login' && i.username ? act('user', 'Скопировать логин', () => copy(i.username, 'Логин скопирован')) : null,
-      i.type === 'login' && i.password ? act('copy', 'Скопировать пароль', () => copy(i.password, 'Пароль скопирован', true)) : null,
       act('edit', 'Изменить', () => openItemEditor(i, false)),
       h('button', { class: 'iact star' + (i.favorite ? ' on' : ''), title: i.favorite ? 'Убрать из избранного' : 'В избранное', 'aria-label': 'Избранное', 'aria-pressed': String(!!i.favorite),
         onclick: async (e) => { e.stopPropagation(); i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); } }, icon('star', 15))));
@@ -674,6 +703,25 @@ function openItemEditor(item, isNew, startPreview = false) {
   const user = h('input', { type: 'text', value: d.username, autocomplete: 'off', spellcheck: 'false' });
   const pass = h('input', { type: 'password', value: d.password, autocomplete: 'new-password', spellcheck: 'false' });
   const eye = h('button', { type: 'button', class: 'icon-btn sm', title: 'Показать пароль', 'aria-label': 'Показать пароль', onclick: () => { pass.type = pass.type === 'password' ? 'text' : 'password'; } }, icon('eye', 16));
+  const need = (v, what) => (v ? true : (toast(what + ' пока пуст', 'warn'), false));
+  const copyUser = tipBtn('icon-btn sm', 'copy', 'Копировать логин', () => need(user.value.trim(), 'Логин') && copy(user.value.trim(), 'Логин скопирован'), 16);
+  const copyPass = tipBtn('icon-btn sm', 'copy', 'Копировать пароль', () => need(pass.value, 'Пароль') && copy(pass.value, 'Пароль скопирован', true), 16);
+  const goUrl = tipBtn('icon-btn sm', 'open', 'Перейти на сайт', () => openSite(url.value.trim()), 16);
+  // заметка: ячейки «название + значение» с кнопкой копирования, под ними обычный текст
+  const secFields = h('div', { class: 'sec xfields' }), fieldList = h('div', { class: 'xlist' });
+  const addField = (x = {}, focus = false) => {
+    const name = h('input', { type: 'text', class: 'xname', value: x.name || '', placeholder: 'Название, напр. Логин', maxlength: '60', autocomplete: 'off', 'aria-label': 'Название поля' });
+    const val = h('input', { type: 'text', class: 'xval', value: x.value || '', placeholder: 'Значение', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Значение поля' });
+    const row = h('div', { class: 'xfield' }, name, val,
+      tipBtn('icon-btn sm', 'copy', 'Копировать', () => need(val.value, 'Поле') && copy(val.value, (name.value.trim() || 'Поле') + ': скопировано', true), 16),
+      h('button', { type: 'button', class: 'icon-btn sm', 'aria-label': 'Убрать поле', dataset: { tip: 'Убрать поле' }, onclick: () => row.remove() }, icon('x', 16)));
+    fieldList.append(row); if (focus) name.focus();
+  };
+  const saved = fieldsOf(d);
+  for (const x of saved) addField(x);
+  for (let n = saved.length; n < 2; n++) addField(); // по умолчанию две пустые ячейки
+  secFields.append(h('div', { class: 'label-row' }, h('span', {}, 'Поля для копирования')), fieldList,
+    h('button', { type: 'button', class: 'link-btn xadd', onclick: () => addField({}, true) }, icon('plus', 14), 'Добавить поле'));
   const len = h('input', { type: 'number', min: '8', max: '64', value: String(S.ui.genLen || 20), class: 'num', 'aria-label': 'Длина пароля' });
   const sym = h('input', { type: 'checkbox', checked: S.ui.genSym !== false });
   const gen = h('button', { type: 'button', class: 'btn sm', onclick: () => {
@@ -704,18 +752,19 @@ function openItemEditor(item, isNew, startPreview = false) {
     seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.t === d.type));
     secLogin.classList.toggle('hidden', d.type !== 'login');
     secUrl.classList.toggle('hidden', d.type === 'note');
+    secFields.classList.toggle('hidden', d.type !== 'note');
     notes.rows = d.type === 'note' ? 12 : 4;
   };
   for (const t of ['login', 'link', 'note']) seg.append(h('button', { type: 'button', dataset: { t }, onclick: () => { d.type = t; refresh(); } }, icon(TYPE_ICON[t], 15), TYPE_LABEL[t]));
-  secUrl.append(h('label', { class: 'field' }, h('span', {}, 'Адрес сайта'), url));
+  secUrl.append(h('div', { class: 'field' }, h('span', {}, 'Адрес сайта'), h('div', { class: 'inp-row' }, url, goUrl)));
   secLogin.append(
-    h('div', { class: 'two' }, h('label', { class: 'field' }, h('span', {}, 'Логин или почта'), user), h('label', { class: 'field' }, h('span', {}, 'Пароль'), h('div', { class: 'inp-row' }, pass, eye))),
+    h('div', { class: 'two' }, h('div', { class: 'field' }, h('span', {}, 'Логин или почта'), h('div', { class: 'inp-row' }, user, copyUser)), h('div', { class: 'field' }, h('span', {}, 'Пароль'), h('div', { class: 'inp-row' }, pass, eye, copyPass))),
     h('div', { class: 'genrow' }, gen, h('label', { class: 'inline' }, 'Длина', len), h('label', { class: 'inline' }, sym, 'Символы')),
     h('label', { class: 'inline check' }, auto, 'После подстановки нажимать «Войти» автоматически'));
   body.append(
     isNew ? h('div', { class: 'field' }, h('span', {}, 'Тип'), seg) : h('div', { class: 'field' }, seg),
     h('label', { class: 'field' }, h('span', {}, 'Название'), title),
-    secUrl, secLogin,
+    secUrl, secLogin, secFields,
     h('div', { class: 'field' }, h('div', { class: 'label-row' }, h('span', {}, 'Заметки'), prevBtn), notes, preview),
     h('div', { class: 'two' }, h('label', { class: 'field' }, h('span', {}, 'Группа'), gsel), h('label', { class: 'field' }, h('span', {}, 'Теги'), tags)),
     h('label', { class: 'inline check' }, fav, 'В избранное'));
@@ -726,6 +775,7 @@ function openItemEditor(item, isNew, startPreview = false) {
     d.title = title.value.trim(); d.url = d.type === 'note' ? '' : url.value.trim();
     d.username = d.type === 'login' ? user.value.trim() : ''; d.password = d.type === 'login' ? pass.value : '';
     d.autoSubmit = d.type === 'login' && auto.checked; d.notes = notes.value; d.favorite = fav.checked;
+    if (d.type === 'note') d.fields = [...fieldList.querySelectorAll('.xfield')].map((r) => ({ name: r.querySelector('.xname').value.trim(), value: r.querySelector('.xval').value })).filter((x) => x.name || x.value);
     d.tags = [...new Set(tags.value.split(/[,\s]+/).map((t) => t.replace(/^#/, '').trim().toLowerCase()).filter(Boolean))];
     if (d.type !== 'note' && d.url) d.url = normalizeUrl(d.url);
     if (!d.title) d.title = hostOf(d.url).replace(/^www\./, '');
