@@ -886,3 +886,7 @@ html[data-look='glass'] select option, html[data-look='glass'] select optgroup {
 html[data-look='pearl'] select { color-scheme: light; }
 html[data-look='pearl'] select option, html[data-look='pearl'] select optgroup { background-color: #fff; color: #1b1d21; }
 select option:checked { background-color: #6366F1; color: #fff; }
+
+/* стрелка списка: при фокусе общий сброс фона превращал её в плитку из стрелок поверх текста */
+html[data-look] select, html[data-look] select:focus, html[data-look] select:hover, html[data-look] select:active {
+  background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 12px; }
