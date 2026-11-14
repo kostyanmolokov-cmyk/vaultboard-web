@@ -1,16 +1,16 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794692228';
-import * as fb from './lib/firebase.js?v=1794692228';
-import * as st from './lib/store.js?v=1794692228';
-import * as sync from './lib/sync.js?v=1794692228';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794692228';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794692228';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794692228';
-import { cleanTitle } from './lib/text.js?v=1794692228';
-import { createIsland } from './island.js?v=1794692228';
-import { crystal3d, currentItem } from './fx.js?v=1794692228';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794692228';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794692228';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794693053';
+import * as fb from './lib/firebase.js?v=1794693053';
+import * as st from './lib/store.js?v=1794693053';
+import * as sync from './lib/sync.js?v=1794693053';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794693053';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794693053';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794693053';
+import { cleanTitle } from './lib/text.js?v=1794693053';
+import { createIsland } from './island.js?v=1794693053';
+import { crystal3d, currentItem } from './fx.js?v=1794693053';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794693053';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794693053';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -19,7 +19,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.10.2' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.10.3' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -78,7 +78,7 @@ function novaTone() {
 async function syncNova() {
   const sc = S.prefs?.scene, on = sc === 'nova' || sc === 'test1' || sc === 'test2' || sc === 'test3';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794692228'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794693053'); } catch (e) { console.error(e); return; }
   nova.setActive(on, { sound: S.prefs?.sfx !== false, mode: sc === 'test1' ? 'soft' : sc === 'test2' ? 'full' : sc === 'test3' ? 'dark' : 'nova' });
   applyPalette(); if (islandOn() && S.data) isl.render();
   renderSfxBtn();

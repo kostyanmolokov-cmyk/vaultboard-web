@@ -1657,3 +1657,38 @@ html[data-scene='nova'][data-layout='island'] .pal-acts .if-btn { color: var(--t
   html[data-scene='nova'][data-layout='island'] .isl-list.enter .ic, html[data-scene='nova'][data-layout='island'] .isl-list.enter .ig { animation: none; }
 }
 html[data-scene='nova'][data-layout='island'] .pal .pal-in, html[data-scene='nova'][data-layout='island'] .pal .pal-in:focus { border: 0; box-shadow: none; background: transparent; }
+
+/* ═══════════ Телефоны и планшеты ═══════════ */
+/* уведомления на телефоне сверху, чтобы не закрывать кнопки окон снизу */
+@media (max-width: 600px) {
+  #toasts { top: max(12px, env(safe-area-inset-top)); bottom: auto; width: calc(100% - 24px); }
+  #toasts .toast { max-width: 100%; text-align: center; }
+}
+/* карточки на сенсорных экранах: название во всю ширину, кнопки действий в строке под ним */
+@media (max-width: 600px), (hover: none) {
+  html[data-look] .item { grid-template-areas: 'fav title title' 'fav sub acts'; row-gap: 0; align-items: center; }
+  html[data-look] .item .ititle { align-self: end; }
+  html[data-look] .item .isub { align-self: center; }
+  html[data-look] .item .iacts { align-self: center; margin-right: -4px; }
+  html[data-look] .item .iact { width: 32px; height: 30px; }
+}
+/* «Остров» и «Тесты»: верхняя панель на телефоне не наезжает сама на себя */
+@media (max-width: 640px) {
+  .isl-top { gap: 8px; }
+  .isl-left { overflow: hidden; gap: 6px; }
+  .isl-sync { padding: 0; width: 26px; justify-content: center; flex: none; }
+  .isl-sync span { display: none; }
+  .isl-right { gap: 6px; }
+  .isl-round, .isl-search { width: 34px; height: 34px; }
+  .isl-add { height: 34px; padding: 0 13px; font-size: 13px; }
+  html[data-scene='nova'][data-layout='island'] .isl-right .isl-add { padding: 0 14px; }
+  .isl-tab { height: 32px; padding: 0 12px; font-size: 13px; }
+  .isl-work.has-sel .isl-insp { max-height: 82vh; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .insp-foot .isl-add, .insp-foot .isl-btn { flex: 1 1 auto; justify-content: center; }
+}
+@media (max-width: 380px) { .isl-add span { display: none; } .isl-add { width: 34px; padding: 0; } }
+/* инспектор-шторка: подложка под ним, тап по ней закрывает */
+@media (max-width: 980px) { .isl-work.has-sel::before { content: ''; position: fixed; inset: 0; z-index: 2400; background: rgba(15,23,42,.28); animation: islfade .2s ease-out; } }
+/* сенсорные экраны: карточки не уже 250px (на телефоне в одну колонку), чтобы влезали название, логин и кнопки */
+@media (hover: none), (max-width: 600px) { html[data-look] .glist { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; } }
+@media (max-width: 600px) { html[data-look] .glist { grid-template-columns: minmax(0, 1fr); } }

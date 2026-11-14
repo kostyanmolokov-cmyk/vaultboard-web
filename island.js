@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794692228';
+import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794693053';
 
 // цвета по пространствам: акцент и три пастельных шара на фоне
 const PAL = [
@@ -192,7 +192,7 @@ export function createIsland(c) {
     const insp = h('aside', { class: 'isl-insp' + (shownSel !== sel ? ' enter' : ''), 'aria-label': 'Запись' }, inspector(spaceItems));
     shownSel = sel;
     const y = scrollY;
-    ui.replaceChildren(topBar(spaces), sub, h('div', { class: 'isl-work' + (sel ? ' has-sel' : '') }, list, insp));
+    ui.replaceChildren(topBar(spaces), sub, h('div', { class: 'isl-work' + (sel ? ' has-sel' : ''), onclick: (e) => { if (e.target === e.currentTarget && sel && matchMedia('(max-width: 980px)').matches) { sel = null; render(); } } }, list, insp));
     scrollTo(0, y);
     placePill();
   }
