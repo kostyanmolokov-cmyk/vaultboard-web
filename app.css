@@ -877,3 +877,12 @@ html[data-look='night'] .board.enter .item { animation: nightIn .4s ease-out bac
 html[data-look='night'] .hero.fade { animation: nightIn .4s ease-out; }
 @media (hover: none) { html[data-look='night'] .group:hover, html[data-look='night'] .tab:hover, html[data-look='night'] .item:hover { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .blobs i { animation: none; } html[data-look='night'] .group, html[data-look='night'] .tab, html[data-look='night'] .item, html[data-look='night'] .btn { transition: none; } }
+
+/* выпадающие списки: сплошной фон, чтобы сквозь них ничего не просвечивало */
+select option, select optgroup { background-color: #fff; color: #1b1d21; }
+html[data-look='night'] select, html[data-look='glass'] select { color-scheme: dark; }
+html[data-look='night'] select option, html[data-look='night'] select optgroup { background-color: #14161f; color: #F3F4F6; }
+html[data-look='glass'] select option, html[data-look='glass'] select optgroup { background-color: #181a33; color: #fff; }
+html[data-look='pearl'] select { color-scheme: light; }
+html[data-look='pearl'] select option, html[data-look='pearl'] select optgroup { background-color: #fff; color: #1b1d21; }
+select option:checked { background-color: #6366F1; color: #fff; }
