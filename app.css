@@ -1141,3 +1141,63 @@ html[data-look] .item .fav.letter { box-shadow: 0 2px 8px rgba(0,0,0,.25); }
   html[data-look] .item .iact.star.on { color: #fbbf24; } html[data-look] .item .iact-sep { display: none; }
   html[data-look] .item { grid-template-columns: 38px minmax(0, 1fr) auto; grid-template-areas: 'fav title acts' 'fav sub acts'; }
 }
+
+/* ═════════ Единый строгий шрифт без засечек (Inter) и читаемые подписи ═════════ */
+@font-face { font-family: 'Inter'; font-weight: 400; font-style: normal; font-display: swap; src: url('fonts/inter-400.woff') format('woff'); }
+@font-face { font-family: 'Inter'; font-weight: 500; font-style: normal; font-display: swap; src: url('fonts/inter-500.woff') format('woff'); }
+@font-face { font-family: 'Inter'; font-weight: 600; font-style: normal; font-display: swap; src: url('fonts/inter-600.woff') format('woff'); }
+@font-face { font-family: 'Inter'; font-weight: 700; font-style: normal; font-display: swap; src: url('fonts/inter-700.woff') format('woff'); }
+:root { --font: 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif; --mono: var(--font); --code: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+body { font: 400 14px/1.5 var(--font); letter-spacing: 0; font-feature-settings: 'kern', 'calt'; }
+button, input, select, textarea { font-family: var(--font); }
+.rkbox, .md code, .md pre code { font-family: var(--code); }
+.search kbd { font: 500 11px var(--font); }
+.tcount, .fcount, .gcount, .hero p { font-variant-numeric: tabular-nums; }
+/* заголовки: плотнее и строже вместо тонкого начертания */
+html[data-look] .hero h1 { font-weight: 600; letter-spacing: -.028em; line-height: 1.1; }
+html[data-look] .ghead .gname, html[data-look] .gname { font-weight: 600; letter-spacing: -.005em; }
+html[data-look] .item .ititle { font-weight: 600; letter-spacing: -.005em; }
+html[data-look] .item .isub { font-size: 13px; font-weight: 400; letter-spacing: 0; }
+html[data-look] .modal h2, html[data-look] .modal .mtitle { font-weight: 600; letter-spacing: -.01em; }
+/* Нова: вместо моноширинных заглавных подписей читаемый обычный шрифт */
+html[data-scene='nova'][data-look] .hero p { font-family: var(--font); font-size: 13.5px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+html[data-scene='nova'][data-look] .side-label { font-family: var(--font); font-size: 12px; font-weight: 600; letter-spacing: .02em; text-transform: none; }
+html[data-scene='nova'][data-look] .gcount { font-family: var(--font); font-weight: 600; }
+html[data-scene='nova'][data-look] .item .isub { font-family: var(--font); font-size: 13px; }
+
+/* ── яркость и цвет второстепенного текста (раньше был тусклым серым) ── */
+:root[data-look='night'][data-theme] { --ink-3: #A9B0C4; --ink-2: #D2D6E2; }
+:root[data-scene='nova'][data-look] { --ink-3: #AEB6CC; --ink-2: #D0D6E6; }
+:root[data-look='glass'][data-theme] { --ink-3: rgba(255,255,255,.76); --ink-2: rgba(255,255,255,.92); }
+:root[data-look='pearl'][data-theme='light'] { --ink-3: #5c5987; --ink-2: #38355f; }
+:root[data-scene='peach'][data-look='pearl'] { --ink-3: #86593f; --ink-2: #5a3a29; }
+/* Ночь и Нова: подписи с оттенком темы */
+html[data-look='night'] .hero p, html[data-look='night'] .side-label, html[data-look='night'] .tcount, html[data-look='night'] .fcount { color: #A5B4FC; }
+html[data-look='night'] .gcount { color: #C7D2FE; background: rgba(99,102,241,.22); }
+html[data-look='night'] .item .isub { color: #B8BFD3; }
+html[data-scene='nova'][data-look] .hero p, html[data-scene='nova'][data-look] .side-label, html[data-scene='nova'][data-look] .tcount, html[data-scene='nova'][data-look] .fcount { color: color-mix(in srgb, rgb(var(--nv)) 78%, #fff); }
+html[data-scene='nova'][data-look] .item .isub { color: #BCC4D8; }
+html[data-scene='nova'][data-look] .gcount { background: rgb(var(--nv) / .2); color: color-mix(in srgb, rgb(var(--nv)) 70%, #fff); }
+/* стеклянные тёмные темы */
+html[data-look='glass'] .hero p, html[data-look='glass'] .side-label { color: rgba(255,255,255,.86); }
+html[data-look='glass'] .gcount { color: #fff; background: rgba(255,255,255,.2); }
+/* светлые темы: фиолетовые подписи и тёмный читаемый текст */
+html[data-look='pearl'] .hero p, html[data-look='pearl'] .side-label { color: #4f46c8; font-weight: 600; }
+html[data-look='pearl'] .item .isub { color: #4b4878; }
+html[data-look='pearl'] .gcount { color: #4338ca; background: rgba(99,102,241,.16); font-weight: 600; }
+html[data-look='pearl'] .tcount, html[data-look='pearl'] .fcount { color: #5b54b8; }
+html[data-scene='peach'][data-look='pearl'] .hero p, html[data-scene='peach'][data-look='pearl'] .side-label { color: #b4531f; }
+html[data-scene='peach'][data-look='pearl'] .gcount { color: #9a3f10; background: rgba(230,130,60,.2); }
+html[data-scene='peach'][data-look='pearl'] .item .isub { color: #7a4f37; }
+/* поля ввода, подсказки и плейсхолдеры */
+input::placeholder, textarea::placeholder { opacity: 1; color: var(--ink-3); }
+.hint, .field > span, .label-row > span { color: var(--ink-2); }
+.hint { color: var(--ink-3); }
+
+/* Кнопка «Новая группа» в стеклянных темах: видимый плюс */
+html[data-look='glass'] .group-add svg { background: rgba(165,180,252,.2); color: #E0E7FF; }
+html[data-look='glass'] .group-add { color: #E5E7F2; }
+html[data-look='glass'] .group-add:hover { background: rgba(255,255,255,.14); color: #fff; }
+html[data-look='glass'] .group-add:hover svg { background: rgba(165,180,252,.34); }
+/* Персик: пункт «Новое пространство» и подписи ярче */
+html[data-scene='peach'] .side .btn-ghost, html[data-scene='peach'] .side-new { color: #7a4f37; }
