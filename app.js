@@ -1,13 +1,13 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794674147';
-import * as fb from './lib/firebase.js?v=1794674147';
-import * as st from './lib/store.js?v=1794674147';
-import * as sync from './lib/sync.js?v=1794674147';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794674147';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794674147';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794674147';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794674147';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794674147';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794674784';
+import * as fb from './lib/firebase.js?v=1794674784';
+import * as st from './lib/store.js?v=1794674784';
+import * as sync from './lib/sync.js?v=1794674784';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794674784';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794674784';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794674784';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794674784';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794674784';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -16,7 +16,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.7' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.8' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -72,7 +72,7 @@ function novaTone() {
 async function syncNova() {
   const on = S.prefs?.scene === 'nova';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794674147'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794674784'); } catch (e) { console.error(e); return; }
   nova.setActive(S.prefs?.scene === 'nova', { sound: S.prefs?.sfx !== false });
   renderSfxBtn();
 }
@@ -489,7 +489,7 @@ function faviconUrl(pageUrl) {
 const noFavicon = new Map(); // host → true, если своего значка у сайта нет
 const fieldsOf = (i) => (Array.isArray(i.fields) ? i.fields.filter((x) => x && (x.name || x.value)) : []);
 /** Маленькая кнопка действия: подсказка при наведении, после нажатия на секунду превращается в галочку. */
-function tipBtn(cls, ic, tip, fn, size = 15) {
+function tipBtn(cls, ic, tip, fn, size = 17) {
   const b = h('button', { type: 'button', class: cls, 'aria-label': tip, dataset: { tip },
     onclick: async (e) => { e.preventDefault(); e.stopPropagation(); if ((await fn()) === false) return; b.classList.add('done'); b.replaceChildren(icon('check', size)); setTimeout(() => { b.classList.remove('done'); b.replaceChildren(icon(ic, size)); }, 1300); } }, icon(ic, size));
   return b;
@@ -554,15 +554,14 @@ function itemRow(i) {
   // быстрые действия справа: появляются при наведении
   const q = [];
   if (i.type === 'login') {
-    if (i.username) q.push(tipBtn('qbtn', 'user', 'Копировать логин', () => copy(i.username, 'Логин скопирован')));
-    if (i.password) q.push(tipBtn('qbtn', 'key', 'Копировать пароль', () => copy(i.password, 'Пароль скопирован', true)));
+    if (i.username) q.push(tipBtn('iact', 'user', 'Копировать логин', () => copy(i.username, 'Логин скопирован')));
+    if (i.password) q.push(tipBtn('iact', 'key', 'Копировать пароль', () => copy(i.password, 'Пароль скопирован', true)));
   } else if (i.type === 'link') {
-    if (i.url) q.push(tipBtn('qbtn', 'open', 'Перейти на сайт', () => openSite(i.url)), tipBtn('qbtn', 'copy', 'Копировать адрес', () => copy(normalizeUrl(i.url), 'Адрес скопирован')));
+    if (i.url) q.push(tipBtn('iact', 'open', 'Перейти на сайт', () => openSite(i.url)), tipBtn('iact', 'copy', 'Копировать адрес', () => copy(normalizeUrl(i.url), 'Адрес скопирован')));
   } else {
-    for (const x of flds.filter((x) => x.value).slice(0, 2)) q.push(tipBtn('qbtn', 'copy', 'Копировать: ' + (x.name || 'поле'), () => copy(x.value, (x.name || 'Поле') + ': скопировано', true)));
-    if (!q.length && i.notes) q.push(tipBtn('qbtn', 'copy', 'Копировать текст', () => copy(i.notes, 'Текст скопирован')));
+    for (const x of flds.filter((x) => x.value).slice(0, 2)) q.push(tipBtn('iact', 'copy', 'Копировать: ' + (x.name || 'поле'), () => copy(x.value, (x.name || 'Поле') + ': скопировано', true), 17));
+    if (!q.length && i.notes) q.push(tipBtn('iact', 'copy', 'Копировать текст', () => copy(i.notes, 'Текст скопирован')));
   }
-  const quick = q.length ? h('span', { class: 'qacts' }, q) : null;
   const row = h('div', { class: 'item ' + i.type, dataset: { id: i.id }, draggable: true, tabindex: '0', role: 'button', 'aria-label': `${TYPE_LABEL[i.type]}: ${i.title}`,
     onclick: () => activate(i),
     onkeydown: (e) => { if (e.key === 'Enter') activate(i); },
@@ -571,15 +570,12 @@ function itemRow(i) {
     fav,
     h('span', { class: 'ititle' }, i.title || hostOf(i.url) || '(без названия)'),
     sub ? h('span', { class: 'isub' }, sub) : null,
-    quick,
-    h('span', { class: 'iacts' },
-      act('edit', 'Изменить', () => openItemEditor(i, false)),
-      h('button', { class: 'iact star' + (i.favorite ? ' on' : ''), title: i.favorite ? 'Убрать из избранного' : 'В избранное', 'aria-label': 'Избранное', 'aria-pressed': String(!!i.favorite),
-        onclick: async (e) => { e.stopPropagation(); i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); } }, icon('star', 15))));
+    h('span', { class: 'iacts', role: 'toolbar', 'aria-label': 'Действия с записью' },
+      q, q.length ? h('i', { class: 'iact-sep', 'aria-hidden': 'true' }) : null,
+      tipBtn('iact', 'edit', 'Изменить', () => { openItemEditor(i, false); return false; }, 17),
+      h('button', { type: 'button', class: 'iact star' + (i.favorite ? ' on' : ''), 'aria-label': i.favorite ? 'Убрать из избранного' : 'В избранное', 'aria-pressed': String(!!i.favorite), dataset: { tip: i.favorite ? 'Убрать из избранного' : 'В избранное' },
+        onclick: async (e) => { e.preventDefault(); e.stopPropagation(); i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); } }, icon('star', 17))));
   return row;
-  function act(name, title, fn) {
-    return h('button', { class: 'iact', title, 'aria-label': title, onclick: (e) => { e.stopPropagation(); fn(); } }, icon(name, 15));
-  }
 }
 
 // ───── действия с записью ─────

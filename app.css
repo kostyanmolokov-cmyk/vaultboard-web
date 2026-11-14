@@ -1110,3 +1110,34 @@ html[data-scene='nova'][data-look] .fav.glyph { background: rgb(var(--nv) / .14)
 html[data-look] .item .fav-img, html[data-scene='nova'][data-look] .item .fav-img { background: #f6f7fb; border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.12) inset; padding: 7px; }
 html[data-look] .item .fav-img.px16 { padding: 11px; image-rendering: -webkit-optimize-contrast; }
 html[data-look] .item .fav.letter { box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+
+/* ───── единая панель действий над карточкой: 4 чётких кнопки в одном месте ───── */
+.qacts { display: none !important; }
+.iact-sep { display: block; width: 1px; height: 20px; margin: 0 4px; background: rgba(255,255,255,.18); flex: none; }
+@media (min-width: 601px) and (hover: hover) {
+  html[data-look] .glist { padding-top: 24px; }
+  html[data-look] .item .iacts { top: -19px; right: 10px; gap: 2px; padding: 4px; border-radius: 15px; background: rgba(16,18,30,.98); border: 1px solid rgba(255,255,255,.2);
+    box-shadow: 0 10px 26px -6px rgba(0,0,0,.75), 0 0 0 1px rgba(0,0,0,.25); }
+  html[data-look] .item .iact { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 11px; background: transparent; color: #E8EAF2; cursor: pointer; }
+  html[data-look] .item .iact svg { width: 18px; height: 18px; stroke-width: 2; }
+  html[data-look] .item .iact:hover, html[data-look] .item .iact:focus-visible { background: #6366F1; color: #fff; box-shadow: 0 4px 12px -3px rgba(99,102,241,.7); outline: 0; }
+  html[data-look] .item .iact.done { background: #23a567; color: #fff; box-shadow: none; }
+  html[data-look] .item .iact.star { color: #E8EAF2; } html[data-look] .item .iact.star.on { color: #fbbf24; } html[data-look] .item .iact.star.on svg { fill: #fbbf24; }
+  html[data-look] .item .iact.star:hover { background: rgba(251,191,36,.2); color: #fbbf24; box-shadow: none; }
+  /* подсказка под кнопкой, чтобы не уходила за верх окна */
+  html[data-look] .item .iact[data-tip]::after { bottom: auto; top: calc(100% + 8px); left: 50%; right: auto; transform: translate(-50%, -4px); }
+  html[data-look] .item .iact[data-tip]:hover::after, html[data-look] .item .iact[data-tip]:focus-visible::after { transform: translate(-50%, 0); }
+  html[data-look='pearl'] .item .iacts { background: #fff; border-color: rgba(110,100,190,.25); box-shadow: 0 10px 26px -8px rgba(80,60,180,.45); }
+  html[data-look='pearl'] .item .iact { color: #46427a; } html[data-look='pearl'] .item .iact.star { color: #46427a; } html[data-look='pearl'] .item .iact.star.on { color: #e5a82e; }
+  html[data-look='pearl'] .item .iact-sep { background: rgba(110,100,190,.25); }
+  html[data-scene='nova'][data-look] .item .iacts { background: rgba(6,9,18,.98); border-color: rgb(var(--nv) / .45); box-shadow: 0 10px 26px -6px rgba(0,0,0,.8), 0 0 18px -6px rgb(var(--nv) / .5); }
+  html[data-scene='nova'][data-look] .item .iact:hover, html[data-scene='nova'][data-look] .item .iact:focus-visible { background: rgb(var(--nv)); color: #05070E; box-shadow: 0 0 14px -2px rgb(var(--nv) / .7); }
+}
+/* телефон и сенсорные экраны: кнопки всегда на виду справа, без наведения */
+@media (max-width: 600px), (hover: none) {
+  html[data-look] .item .iacts { position: static; grid-area: acts; display: flex; gap: 0; padding: 0; background: none; border: 0; box-shadow: none; opacity: 1; transform: none; pointer-events: auto; }
+  html[data-look] .item .iact { width: 32px; height: 36px; border: 0; background: transparent; color: var(--ink-2); display: grid; place-items: center; padding: 0; }
+  html[data-look] .item .iact svg { width: 18px; height: 18px; }
+  html[data-look] .item .iact.star.on { color: #fbbf24; } html[data-look] .item .iact-sep { display: none; }
+  html[data-look] .item { grid-template-columns: 38px minmax(0, 1fr) auto; grid-template-areas: 'fav title acts' 'fav sub acts'; }
+}
