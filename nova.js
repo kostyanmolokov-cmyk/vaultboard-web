@@ -1,7 +1,12 @@
 // Оформление «Нова»: живой 3D-фон на WebGL (без сторонних библиотек), наклон карточек, HUD-эффекты,
 // «расшифровка» заголовка и синтезатор микрозвуков. Модуль подгружается только когда выбрана эта тема.
 
-const TONES = { violet: [0.62, 0.45, 1.0], emerald: [0.2, 0.9, 0.62], amber: [1.0, 0.68, 0.22], cyan: [0.25, 0.82, 1.0] };
+const TONES = { violet: [0.62, 0.45, 1.0], emerald: [0.2, 0.9, 0.62], amber: [1.0, 0.68, 0.22], cyan: [0.25, 0.82, 1.0],
+  // цвета пространств макета «Остров» (режимы «Тест 1» и «Тест 2»)
+  i0: [0.39, 0.40, 0.95], i1: [0.05, 0.65, 0.91], i2: [0.06, 0.73, 0.51], i3: [0.96, 0.62, 0.04], i4: [0.93, 0.28, 0.60], i5: [0.55, 0.36, 0.96] };
+// режим: 'nova' (как было), 'soft' (Тест 1: светлый фон, мягкие звуки, без вспышек и расшифровки), 'full' (Тест 2: светлый фон, все эффекты)
+let mode = 'nova';
+const light = () => mode !== 'nova';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
 const FINE = matchMedia('(hover: hover) and (pointer: fine)');
 
@@ -14,7 +19,7 @@ const mouse = [0, 0], cam = [0, 0], t1 = [0, 0], t2 = [0, 0];
 // ───────────────────────── 3D-сцена: сферы и ленты с иризацией ─────────────────────────
 const VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
 const FRAG = `precision highp float;
-uniform vec2 uRes,uCam,uT1,uT2;uniform float uTime,uShock,uPush,uSpin;uniform vec3 uAcc;
+uniform vec2 uRes,uCam,uT1,uT2;uniform float uTime,uShock,uPush,uSpin,uLight;uniform vec3 uAcc;
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 float torus(vec3 p,vec2 t){vec2 q=vec2(length(p.xz)-t.x,p.y);return length(q)-t.y;}
 float frame(vec3 p,vec2 b,float r,float th){vec2 d=abs(p.xy)-b+r;float e=length(max(d,0.))+min(max(d.x,d.y),0.)-r;return length(vec2(e,p.z))-th;}
@@ -64,7 +69,25 @@ void main(){
   col+=uAcc*exp(-rr*rr*150.)*(1.-uShock)*.3;
   vec2 a=uv-uT1,b=uv-uT2;
   col+=uAcc*(exp(-dot(a,a)*34.)*.07+exp(-dot(b,b)*13.)*.04);
-  col*=1.-.32*dot(uv,uv);
+  if(uLight>.5){
+    // светлый вариант: пастельный фон #F8FAFC→#EFF6FF и перламутровые фигуры
+    vec3 lb=mix(vec3(.937,.965,1.),vec3(.973,.98,.988),uv.y+.5)+uAcc*.07*exp(-dot(uv-vec2(.3,.25),uv-vec2(.3,.25))*1.4);
+    vec3 lc=lb;
+    if(id>0.){
+      vec3 pos=ro+rd*t,n=normal(pos),v=-rd;
+      float fr=pow(1.-max(dot(n,v),0.),2.);
+      vec3 ir=.5+.5*cos(6.2831*(fr*.8+dot(n,vec3(.3,.5,.2))*.3+id*.07+uTime*.02+vec3(0.,.33,.67)));
+      vec3 l=normalize(vec3(.5,.8,.6));
+      float dif=max(dot(n,l),0.),sp=pow(max(dot(reflect(-l,n),v),0.),30.);
+      vec3 base=mix(vec3(1.),uAcc,.32);
+      lc=base*(.78+.22*dif)+mix(ir,vec3(1.),.45)*fr*.35-uAcc*fr*.12+sp*.45;
+      lc=mix(lc,lb,smoothstep(5.,13.,t)*.85);
+    }else{float px=2.6/uRes.y;lc=mix(lc,uAcc*.6+.4,(1.-smoothstep(0.,px*7.,edge))*.12);}
+    float lr=length(uv)-uShock*2.3;lc+=uAcc*exp(-lr*lr*150.)*(1.-uShock)*.18;
+    lc+=uAcc*(exp(-dot(a,a)*34.)*.06+exp(-dot(b,b)*13.)*.035);
+    lc*=1.-.05*dot(uv,uv);
+    col=lc;
+  }else col*=1.-.32*dot(uv,uv);
   col+=(fract(sin(dot(gl_FragCoord.xy,vec2(12.9898,78.233)))*43758.5453)-.5)/255.;
   gl_FragColor=vec4(max(col,0.),1.);
 }`;
@@ -89,7 +112,7 @@ function build() {
   gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
   const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
-  for (const n of ['uRes', 'uCam', 'uT1', 'uT2', 'uTime', 'uShock', 'uPush', 'uSpin', 'uAcc']) U[n] = gl.getUniformLocation(prog, n);
+  for (const n of ['uRes', 'uCam', 'uT1', 'uT2', 'uTime', 'uShock', 'uPush', 'uSpin', 'uAcc', 'uLight']) U[n] = gl.getUniformLocation(prog, n);
   resize();
   return true;
 }
@@ -114,7 +137,7 @@ function frame(now) {
   gl.uniform2f(U.uRes, canvas.width, canvas.height); gl.uniform2f(U.uCam, cam[0], cam[1]);
   gl.uniform2f(U.uT1, t1[0], t1[1]); gl.uniform2f(U.uT2, t2[0], t2[1]);
   gl.uniform1f(U.uTime, now / 1000); gl.uniform1f(U.uShock, shock); gl.uniform1f(U.uPush, push); gl.uniform1f(U.uSpin, spin);
-  gl.uniform3f(U.uAcc, acc[0], acc[1], acc[2]);
+  gl.uniform3f(U.uAcc, acc[0], acc[1], acc[2]); gl.uniform1f(U.uLight, light() ? 1 : 0);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
 function loop() {
@@ -133,12 +156,12 @@ function audio() {
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
   return ctx;
 }
-function env(a, peak, t0, attack, dur) { const g = a.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + attack); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); g.connect(a.destination); return g; }
+function env(a, peak, t0, attack, dur) { if (mode === 'soft') peak *= 0.55; const g = a.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(peak, t0 + attack); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); g.connect(a.destination); return g; }
 function tick() {
   const now = performance.now(); if (now - lastTick < 70) return; lastTick = now;
   const a = audio(); if (!a) return;
   const t = a.currentTime, o = a.createOscillator();
-  o.type = 'triangle'; o.frequency.setValueAtTime(1850, t); o.frequency.exponentialRampToValueAtTime(1250, t + 0.04);
+  o.type = mode === 'soft' ? 'sine' : 'triangle'; o.frequency.setValueAtTime(mode === 'soft' ? 1400 : 1850, t); o.frequency.exponentialRampToValueAtTime(mode === 'soft' ? 1000 : 1250, t + 0.04);
   o.connect(env(a, 0.018, t, 0.004, 0.05)); o.start(t); o.stop(t + 0.06);
 }
 function blip() {
@@ -198,31 +221,34 @@ function wire() {
     if (!active || e.pointerType === 'touch') return;
     mouse[0] = (e.clientX / innerWidth) * 2 - 1; mouse[1] = 1 - (e.clientY / innerHeight) * 2;
     if (tiltRaf || REDUCED.matches || !FINE.matches) return;
-    const it = e.target.closest?.('.item'); if (!it) return;
+    const it = e.target.closest?.('.item, .ic'); if (!it) return;
     tiltRaf = requestAnimationFrame(() => {
       tiltRaf = 0;
       const r = it.getBoundingClientRect(); if (!r.width) return;
       const nx = (e.clientX - r.left) / r.width - 0.5, ny = (e.clientY - r.top) / r.height - 0.5;
-      it.style.setProperty('--nv-rx', (nx * 9).toFixed(2) + 'deg'); it.style.setProperty('--nv-ry', (-ny * 11).toFixed(2) + 'deg');
+      const k = mode === 'soft' ? 0.5 : 1; it.style.setProperty('--nv-rx', (nx * 9 * k).toFixed(2) + 'deg'); it.style.setProperty('--nv-ry', (-ny * 11 * k).toFixed(2) + 'deg');
       it.style.setProperty('--nv-gl', (50 + nx * 120).toFixed(1) + '%');
     });
   }, { passive: true });
   document.addEventListener('pointerover', (e) => {
     if (!active || e.pointerType === 'touch') return;
-    const it = e.target.closest?.('.item');
+    const it = e.target.closest?.('.item, .ic, .isl-tab, .pal-row');
     if (it !== hot) { hot = it; if (it) tick(); }
   }, { passive: true });
   document.addEventListener('click', (e) => {
     if (!active) return;
-    const b = e.target.closest?.('#add-btn'); if (!b) return;
+    if (light() && e.target.closest?.('.if-btn, .isl-tab-add')) { blip(); return; } // копирование в «Острове»
+    const b = e.target.closest?.('#add-btn, .isl-add'); if (!b) return;
     const r = b.getBoundingClientRect();
-    burst(e.clientX || r.left + r.width / 2, e.clientY || r.top + r.height / 2); blip();
+    if (mode !== 'soft') burst(e.clientX || r.left + r.width / 2, e.clientY || r.top + r.height / 2);
+    blip();
   }, true);
 }
 
 // ───────────────────────── управление из приложения ─────────────────────────
 export function setActive(on, opts = {}) {
   if ('sound' in opts) sfx = !!opts.sound;
+  if (opts.mode) { mode = opts.mode; if (canvas && on && active) { target = TONES[document.documentElement.dataset.nv] || TONES.violet; loop(); } }
   if (on === active) return;
   active = on;
   if (on) {
@@ -243,8 +269,17 @@ export function setSound(on) { sfx = !!on; if (on) { armed = true; tick(); } }
 export function spaceChanged() {
   if (!active) return;
   target = TONES[document.documentElement.dataset.nv] || TONES.violet;
-  shock = 0; swoosh(); scramble(document.getElementById('crumb'));
+  shock = 0; swoosh();
+  if (mode === 'nova') scramble(document.getElementById('crumb'));
+  else if (mode === 'full') requestAnimationFrame(() => requestAnimationFrame(() => scramble(document.querySelector('#island .insp-in h2'))));
   if (REDUCED.matches) loop();
 }
 /** Только цвет, без волны: например после переименования или синхронизации. */
 export function retone() { if (active) { target = TONES[document.documentElement.dataset.nv] || TONES.violet; if (REDUCED.matches) loop(); } }
+/** «Тест 2»: в инспекторе открыли запись — расшифровка заголовка и короткий сигнал. */
+export function itemShown() {
+  if (!active || !light()) return;
+  if (mode === 'full') { scramble(document.querySelector('#island .insp-in h2')); blip(); } else tick();
+}
+/** Открыт командный поиск. */
+export function paletteOpened() { if (active && light()) (mode === 'full' ? swoosh : tick)(); }

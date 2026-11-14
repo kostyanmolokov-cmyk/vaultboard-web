@@ -1532,3 +1532,30 @@ html[data-scene='nova'] .c3-shackle { border-color: color-mix(in srgb, rgb(var(-
 :is(html[data-scene='pearl'], html[data-scene='nova']) .search input, :is(html[data-scene='pearl'], html[data-scene='nova']) .search input:focus { background: transparent; border: 0; box-shadow: none; outline: 0; }
 .pal .pal-in, .pal .pal-in:focus { background: transparent; border: 0; box-shadow: none; outline: 0; }
 #island .insp-foot .isl-btn { background: #fff; }
+
+/* ═══════════ «Тест 1» и «Тест 2»: макет «Остров» + эффекты «Новы» ═══════════ */
+html:is([data-scene='test1'], [data-scene='test2']) #island { z-index: 1; }
+html:is([data-scene='test1'], [data-scene='test2']):not([data-nv-flat]) .isl-bg { display: none; }
+html:is([data-scene='test1'], [data-scene='test2']) .nv-bg { filter: none; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='i0'] { --nv: 99 102 241; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='i1'] { --nv: 14 165 233; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='i2'] { --nv: 16 185 129; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='i3'] { --nv: 245 158 11; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='i4'] { --nv: 236 72 153; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='i5'] { --nv: 139 92 246; }
+/* стекло чуть плотнее, чтобы текст хорошо читался поверх живого фона */
+html:is([data-scene='test1'], [data-scene='test2']) .isl { --gl: rgba(255,255,255,.72); }
+/* наклон карточек за курсором */
+html:is([data-scene='test1'], [data-scene='test2']) .ic { transform-style: preserve-3d; transition: transform .14s ease-out, box-shadow .2s, border-color .2s, background .2s; }
+html:is([data-scene='test1'], [data-scene='test2']) .ic:hover { transform: perspective(700px) rotateX(var(--nv-ry, 0deg)) rotateY(var(--nv-rx, 0deg)) translateY(-2px); }
+/* «Тест 2»: блик-развёртка по карточке, неоновое свечение выбранной и групп, как в «Нове» */
+html[data-scene='test2'] .ic:hover { background-image: linear-gradient(105deg, transparent calc(var(--nv-gl, 50%) - 22%), rgb(var(--nv) / .16) var(--nv-gl, 50%), transparent calc(var(--nv-gl, 50%) + 22%)); box-shadow: 0 10px 26px -10px rgb(var(--nv) / .45); }
+html[data-scene='test2'] .ic.sel { box-shadow: 0 0 0 3px rgb(var(--nv) / .18), 0 0 28px -6px rgb(var(--nv) / .55); }
+html[data-scene='test2'] .ig:hover { box-shadow: var(--sh), 0 0 0 1px rgb(var(--nv) / .18), 0 18px 40px -18px rgb(var(--nv) / .45); }
+html[data-scene='test2'] .isl-add { box-shadow: 0 8px 24px -6px rgb(var(--nv) / .7), inset 0 1px 0 rgba(255,255,255,.35); }
+html[data-scene='test2'] .insp-in h2 { font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { html:is([data-scene='test1'], [data-scene='test2']) .ic:hover { transform: none; } }
+/* шарики на приветственной карточке «Острова» качаются на месте, не налезая на заголовок */
+#island .wel-art i:nth-child(1) { animation: islbob 7s ease-in-out infinite; }
+#island .wel-art i:nth-child(2) { animation: islbob 5.5s ease-in-out infinite reverse; }
+@keyframes islbob { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(6px, -5px); } }

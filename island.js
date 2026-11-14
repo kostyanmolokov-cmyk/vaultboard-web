@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794689215';
+import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794690062';
 
 // цвета по пространствам: акцент и три пастельных шара на фоне
 const PAL = [
@@ -39,7 +39,7 @@ export function createIsland(c) {
     sel = null; groupFilter = ''; animateList = true;
     c.selectSpace(id);
   }
-  function select(id) { sel = sel === id ? null : id; showPw = false; render(); }
+  function select(id) { sel = sel === id ? null : id; showPw = false; render(); if (sel) c.onSelect?.(); }
 
   // ───── верхняя панель ─────
   function syncBtn() {
@@ -71,6 +71,7 @@ export function createIsland(c) {
       h('div', { class: 'isl-right' },
         h('button', { class: 'isl-search', title: 'Поиск по всем записям (Ctrl+K)', 'aria-label': 'Поиск', onclick: openPalette }, icon('search', 15), h('span', {}, 'Поиск'), h('kbd', {}, /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘K' : 'Ctrl K')),
         h('button', { class: 'isl-add', onclick: (e) => c.addMenu(e.currentTarget) }, icon('plus', 15), h('span', {}, 'Добавить')),
+        c.fx?.() ? h('button', { class: 'isl-round', title: c.sfxOn() ? 'Выключить звуки' : 'Включить звуки', 'aria-label': 'Звуки интерфейса', 'aria-pressed': String(c.sfxOn()), onclick: c.toggleSfx }, icon(c.sfxOn() ? 'volume' : 'mute', 16)) : null,
         h('button', { class: 'isl-round', title: 'Меню: импорт, настройки', 'aria-label': 'Меню', onclick: (e) => c.mainMenu(e.currentTarget) }, icon('sliders', 16)),
         h('button', { class: 'isl-round', title: 'Заблокировать', 'aria-label': 'Заблокировать', onclick: c.lockNow }, icon('lock', 16))));
   }
@@ -236,6 +237,7 @@ export function createIsland(c) {
     async function choose(r) {
       closePalette();
       if (r.sp.id !== S.spaceId) { S.spaceId = r.sp.id; S.ui.lastSpace = r.sp.id; c.setUi({ lastSpace: r.sp.id }); }
+      c.onSelect && requestAnimationFrame(() => requestAnimationFrame(() => c.onSelect()));
       sel = r.i.id; shownSel = null; groupFilter = ''; S.type = 'all'; showPw = false; animateList = true;
       if (S.ui.collapsed?.[r.g.id]) c.setCollapsed([r.g], false); else c.renderAllNow();
       requestAnimationFrame(() => { const el = ui.querySelector(`.ic[data-id="${CSS.escape(r.i.id)}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: calm() ? 'auto' : 'smooth' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); } });
@@ -252,7 +254,7 @@ export function createIsland(c) {
       h('div', { class: 'pal', role: 'dialog', 'aria-label': 'Командный поиск' },
         h('div', { class: 'pal-top' }, icon('search', 18), input, h('kbd', {}, 'Esc')), list,
         h('div', { class: 'pal-foot' }, h('span', {}, h('kbd', {}, '↑↓'), ' выбор'), h('span', {}, h('kbd', {}, 'Enter'), ' открыть'), h('span', {}, h('kbd', {}, 'Esc'), ' закрыть'))));
-    document.body.append(palEl); document.addEventListener('keydown', palKeys, true);
+    document.body.append(palEl); document.addEventListener('keydown', palKeys, true); c.onPalette?.();
     paint(); input.focus();
   }
 
