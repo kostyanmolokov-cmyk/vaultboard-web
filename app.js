@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794652635';
-import * as fb from './lib/firebase.js?v=1794652635';
-import * as st from './lib/store.js?v=1794652635';
-import * as sync from './lib/sync.js?v=1794652635';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794652635';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794652635';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794652635';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794652635';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794662480';
+import * as fb from './lib/firebase.js?v=1794662480';
+import * as st from './lib/store.js?v=1794662480';
+import * as sync from './lib/sync.js?v=1794662480';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794662480';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794662480';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794662480';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794662480';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.3' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.4' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -52,14 +52,46 @@ async function boot() {
 
 function applyTheme() {
   const sc = S.prefs.scene || 'night', d = document.documentElement.dataset;
-  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : sc === 'night' ? 'night' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
+  d.scene = sc; d.look = sc === 'pearl' || sc === 'peach' ? 'pearl' : sc === 'night' || sc === 'nova' ? 'night' : 'glass'; d.theme = d.look === 'pearl' ? 'light' : 'dark';
   applyPalette();
+  syncNova();
+}
+
+// «Нова»: 3D-фон, эффекты и звук живут в отдельном модуле и грузятся только когда тема выбрана
+let nova = null;
+const NOVA_TONES = ['violet', 'emerald', 'amber', 'cyan'];
+function novaTone() {
+  const list = S.data ? liveSpaces(S.data) : [], i = list.findIndex((s) => s.id === S.spaceId), n = String(list[i]?.name || '').toLowerCase();
+  if (/дом|home/.test(n)) return 'violet';
+  if (/разраб|dev|код|code/.test(n)) return 'emerald';
+  if (/каф|кофе|cafe|coffee/.test(n)) return 'amber';
+  if (/разн|misc|other/.test(n)) return 'cyan';
+  return NOVA_TONES[(i < 0 ? 0 : i) % NOVA_TONES.length];
+}
+async function syncNova() {
+  const on = S.prefs?.scene === 'nova';
+  if (!on && !nova) return;
+  try { nova ||= await import('./nova.js?v=1794662480'); } catch (e) { console.error(e); return; }
+  nova.setActive(S.prefs?.scene === 'nova', { sound: S.prefs?.sfx !== false });
+  renderSfxBtn();
+}
+function renderSfxBtn() {
+  const b = $('#sfx-btn'); if (!b) return;
+  const on = S.prefs?.sfx !== false;
+  b.replaceChildren(icon(on ? 'volume' : 'mute', 15), h('span', { class: 'flabel' }, on ? 'Звук включён' : 'Звук выключен'));
+  b.title = on ? 'Выключить звуки интерфейса' : 'Включить звуки интерфейса'; b.setAttribute('aria-pressed', String(on));
+}
+async function toggleSfx() {
+  const on = S.prefs?.sfx === false;
+  await st.setPrefs({ sfx: on }); S.prefs = await st.getPrefs();
+  nova?.setSound(on); renderSfxBtn();
 }
 
 // Цвета сфер и акцента зависят от пространства: фиолетово-розовый, изумрудно-голубой, тёпло-персиковый
 const PALETTES = ['violet', 'emerald', 'peach'];
 function applyPalette() {
   const d = document.documentElement.dataset;
+  if (d.scene === 'nova') { d.nv = novaTone(); nova?.retone(); } else delete d.nv;
   if (d.look !== 'pearl') { delete d.pal; return; }
   if (d.scene === 'peach') { d.pal = 'peach'; return; }
   const i = S.data ? liveSpaces(S.data).findIndex((s) => s.id === S.spaceId) : 0;
@@ -213,7 +245,8 @@ function renderApp() {
       h('div', { class: 'side-foot' },
         h('button', { class: 'frow', id: 'sync-btn', title: 'Синхронизация', onclick: openSyncDialog }, icon('cloud', 15), h('span', { class: 'flabel' }, 'Синхронизация'), h('i', { class: 'dot' })),
         h('button', { class: 'frow', title: 'Импорт, экспорт, настройки', onclick: (e) => mainMenu(e.currentTarget) }, icon('sliders', 15), h('span', { class: 'flabel' }, 'Меню')),
-        h('button', { class: 'frow', title: 'Заблокировать', onclick: lockNow }, icon('lock', 15), h('span', { class: 'flabel' }, 'Заблокировать')))),
+        h('button', { class: 'frow', title: 'Заблокировать', onclick: lockNow }, icon('lock', 15), h('span', { class: 'flabel' }, 'Заблокировать')),
+        h('button', { class: 'frow nv-only', id: 'sfx-btn', onclick: toggleSfx }))),
     h('section', { class: 'main' },
       h('header', { class: 'top' },
         h('label', { class: 'search' }, icon('search', 15),
@@ -227,6 +260,7 @@ function renderApp() {
       h('div', { class: 'hero' }, h('h1', { id: 'crumb' }), h('p', { id: 'hsub' })),
       h('main', { id: 'board', class: 'board' }))));
   renderAll();
+  renderSfxBtn();
 }
 
 function renderAll() { renderTabs(); renderFilters(); renderBoard(); renderSyncBadge(); }
@@ -274,6 +308,7 @@ async function selectSpace(id) {
   S.animate = true;
   const hero = document.querySelector('.hero'); if (hero) { hero.classList.remove('fade'); void hero.offsetWidth; hero.classList.add('fade'); }
   renderTabs(); renderFilters(); renderBoard();
+  nova?.spaceChanged();
 }
 
 function spaceMenu(anchor, sp) {
@@ -945,13 +980,15 @@ function openSettings() {
   lockOn.addEventListener('change', syncLock); syncLock();
   const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
   const clip = dropdown([[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']], S.prefs.clipClearSec);
-  const theme = dropdown([['night', 'Ночь (тёмная, стекло)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']], S.prefs.scene || 'night');
+  const theme = dropdown([['night', 'Ночь (тёмная, стекло)'], ['nova', 'Нова (тёмная, 3D sci-fi, эффекты и звук)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']], S.prefs.scene || 'night');
   const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
   const autoOn = h('input', { type: 'checkbox', checked: S.prefs.autofill !== false });
+  const sfxOn = h('input', { type: 'checkbox', checked: S.prefs.sfx !== false });
   const m = modal({ title: 'Настройки',
     body: [h('div', { class: 'field' }, h('label', { class: 'inline check' }, lockOn, 'Блокировать при бездействии'), lockRow),
       h('div', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
       h('div', { class: 'field' }, h('span', {}, 'Фон'), theme),
+      h('label', { class: 'inline check' }, sfxOn, 'Звуки интерфейса (в теме «Нова»)'),
       IS_WEB ? null : h('label', { class: 'inline check' }, autoOn, 'Автоматически подставлять логин и пароль на любых сайтах из хранилища'),
       IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
       IS_WEB ? null : h('button', { type: 'button', class: 'btn', onclick: openAutofillLog }, 'Проверить автозаполнение'),
@@ -963,7 +1000,7 @@ function openSettings() {
         try { afOk = await chrome.permissions.request({ origins: ALL_SITES }); } catch { afOk = false; }
         if (!afOk) toast('Без доступа ко всем сайтам автозаполнение при открытии не заработает', 'warn');
       }
-      await st.setPrefs({ autofill: autoOn.checked, autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked });
+      await st.setPrefs({ autofill: autoOn.checked, autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked, sfx: sfxOn.checked });
       S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
     } }, 'Сохранить')] });
 }

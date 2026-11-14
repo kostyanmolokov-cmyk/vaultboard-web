@@ -909,3 +909,122 @@ html[data-look='glass'] .dd-list { background: #181a33; color: #fff; border-colo
 .dd-opt.on { font-weight: 600; color: #6366F1; } html[data-look='night'] .dd-opt.on, html[data-look='glass'] .dd-opt.on { color: #A5B4FC; }
 @keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .dd-list { animation: none; } }
+
+/* ═════════ «Нова»: тёмный 3D sci-fi. Живой фон рисует nova.js, здесь дымчатое стекло, HUD и игровые плитки ═════════ */
+@property --nv-scan { syntax: '<percentage>'; inherits: false; initial-value: -10%; }
+.nv-only { display: none !important; }
+.nv-bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; display: block; filter: blur(.7px); } .nv-bg[hidden] { display: none; }
+.nv-p { position: fixed; z-index: 60; pointer-events: none; border-radius: 50%; background: rgb(var(--nv, 160 120 255)); box-shadow: 0 0 10px 1px rgb(var(--nv, 160 120 255) / .8); }
+html[data-scene='nova'] { --nv: 158 115 255; }
+html[data-scene='nova'][data-nv='emerald'] { --nv: 52 229 158; }
+html[data-scene='nova'][data-nv='amber'] { --nv: 255 174 56; }
+html[data-scene='nova'][data-nv='cyan'] { --nv: 64 209 255; }
+:root[data-scene='nova'][data-look][data-theme] {
+  --bg:#05070E; --side:rgba(10,14,24,.55); --panel:rgba(10,14,24,.55); --raise:rgba(11,15,27,.94);
+  --hover:rgb(var(--nv) / .08); --press:rgb(var(--nv) / .14);
+  --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
+  --ink:#E9ECF5; --ink-2:#B9C0D2; --ink-3:#7F879B;
+  --accent:rgb(var(--nv)); --accent-hi:rgb(var(--nv)); --accent-ink:#05070E; --accent-soft:rgb(var(--nv) / .14);
+  --btn:rgb(var(--nv)); --btn-glow:rgb(var(--nv) / .35);
+  --shadow:0 18px 50px -18px rgba(0,0,0,.75); --pop:0 0 0 1px rgb(var(--nv) / .22), 0 30px 80px rgba(0,0,0,.7);
+}
+html[data-scene='nova'][data-look] body { background: #05070E; }
+html[data-scene='nova'][data-look] .scene { background: radial-gradient(900px 560px at 72% 18%, rgb(var(--nv) / .10), transparent 70%), radial-gradient(760px 520px at 12% 88%, rgba(40,70,160,.14), transparent 70%), #05070E; transition: background .6s; }
+html[data-scene='nova'][data-look] .scene::after { display: none; }
+html[data-scene='nova'][data-look] .blobs, html[data-scene='nova'][data-look] .orbs { display: none; }
+html[data-scene='nova'][data-look] .grain { opacity: .05; }
+html[data-scene='nova'][data-look] .nv-only { display: flex !important; }
+
+/* дымчатое стекло: 3D-фигуры просвечивают мягкими пятнами */
+html[data-scene='nova'][data-look] .side, html[data-scene='nova'][data-look] .search, html[data-scene='nova'][data-look] .group, html[data-scene='nova'][data-look] .gate-card, html[data-scene='nova'][data-look] .empty, html[data-scene='nova'][data-look] .toast {
+  background: linear-gradient(160deg, rgba(255,255,255,.045), rgba(255,255,255,0) 38%), rgba(10,14,24,.55);
+  -webkit-backdrop-filter: blur(40px) saturate(1.5); backdrop-filter: blur(40px) saturate(1.5);
+  border: 1px solid rgba(255,255,255,.08); border-top-color: rgba(255,255,255,.14);
+  box-shadow: 0 1px 0 rgba(255,255,255,.05) inset, 0 18px 50px -18px rgba(0,0,0,.75); }
+html[data-scene='nova'][data-look] .modal, html[data-scene='nova'][data-look] .popmenu, html[data-scene='nova'][data-look] .dd-list {
+  background: rgba(11,15,27,.94); -webkit-backdrop-filter: blur(40px) saturate(1.5); backdrop-filter: blur(40px) saturate(1.5); border: 1px solid rgb(var(--nv) / .22); }
+html[data-scene='nova'][data-look] .scrim { background: rgba(3,5,12,.6); }
+html[data-scene='nova'][data-look] .group { border-radius: 22px; }
+html[data-scene='nova'][data-look] .group:hover { border-color: rgb(var(--nv) / .28); }
+html[data-scene='nova'][data-look] .gcount { background: rgb(var(--nv) / .14); color: rgb(var(--nv)); font-family: var(--mono); }
+
+/* сайдбар и поиск */
+html[data-scene='nova'][data-look] .mark { background: linear-gradient(150deg, rgb(var(--nv)), rgb(var(--nv) / .45)); color: #05070E; box-shadow: 0 0 18px rgb(var(--nv) / .45); transition: background .5s, box-shadow .5s; }
+html[data-scene='nova'][data-look] .brand-name { letter-spacing: .04em; }
+html[data-scene='nova'][data-look] .side-label { text-transform: uppercase; letter-spacing: .16em; font-size: 10.5px; font-family: var(--mono); color: var(--ink-3); }
+html[data-scene='nova'][data-look] .tab:hover, html[data-scene='nova'][data-look] .frow:hover, html[data-scene='nova'][data-look] .tab-add:hover { border-color: rgb(var(--nv) / .22); background: rgb(var(--nv) / .07); }
+html[data-scene='nova'][data-look] .tab.active, html[data-scene='nova'][data-look] .frow.on { background: linear-gradient(90deg, rgb(var(--nv) / .2), rgb(var(--nv) / .05)); border-color: rgb(var(--nv) / .42); color: #fff; box-shadow: inset 2px 0 0 rgb(var(--nv)), 0 0 22px -8px rgb(var(--nv) / .6); }
+html[data-scene='nova'][data-look] .tab.active .sico i { background: rgb(var(--nv)); box-shadow: 0 0 10px rgb(var(--nv)); }
+html[data-scene='nova'][data-look] .frow.on svg { color: rgb(var(--nv)); }
+html[data-scene='nova'][data-look] .tab.drop { box-shadow: inset 0 0 0 1px rgb(var(--nv)); }
+html[data-scene='nova'][data-look] .search:focus-within { background: rgba(10,14,24,.7); border-color: rgb(var(--nv) / .6); box-shadow: 0 0 0 3px rgb(var(--nv) / .16), 0 0 26px -6px rgb(var(--nv) / .5); }
+html[data-scene='nova'][data-look] .chip.on { background: rgb(var(--nv)); color: #05070E; }
+html[data-scene='nova'][data-look] input:focus, html[data-scene='nova'][data-look] select:focus, html[data-scene='nova'][data-look] textarea:focus { border-color: rgb(var(--nv) / .7); box-shadow: 0 0 0 3px rgb(var(--nv) / .16); }
+html[data-scene='nova'][data-look] input[type=checkbox] { accent-color: rgb(var(--nv)); }
+
+/* заголовок пространства: HUD-подпись */
+html[data-scene='nova'][data-look] .hero h1 { font-weight: 300; letter-spacing: .01em; color: #F4F6FC; text-shadow: 0 0 34px rgb(var(--nv) / .45); font-variant-ligatures: none; }
+html[data-scene='nova'][data-look] .hero p { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; gap: 10px; }
+html[data-scene='nova'][data-look] .hero p::before { content: ''; width: 26px; height: 2px; background: rgb(var(--nv)); box-shadow: 0 0 10px rgb(var(--nv)); transition: background .5s; }
+html[data-scene='nova'][data-look] .hero.fade { animation: none; }
+
+/* игровые плитки записей: наклон к курсору, голографический блик, скобки визира и луч сканера */
+html[data-scene='nova'][data-look] .glist { perspective: 900px; }
+html[data-scene='nova'][data-look] .item { background-color: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.09); border-top-color: rgba(255,255,255,.15); border-radius: 12px; box-shadow: none;
+  transition: transform .14s ease-out, border-color .2s, box-shadow .2s, background-color .2s; transform-style: preserve-3d; will-change: transform; }
+html[data-scene='nova'][data-look] .item::after { content: ''; position: absolute; inset: -4px; pointer-events: none; opacity: 0; transition: opacity .15s, inset .2s cubic-bezier(.2,.8,.2,1);
+  --b: rgb(var(--nv)); filter: drop-shadow(0 0 4px rgb(var(--nv) / .9));
+  background:
+    linear-gradient(var(--b), var(--b)) left top / 12px 2px, linear-gradient(var(--b), var(--b)) left top / 2px 12px,
+    linear-gradient(var(--b), var(--b)) right top / 12px 2px, linear-gradient(var(--b), var(--b)) right top / 2px 12px,
+    linear-gradient(var(--b), var(--b)) left bottom / 12px 2px, linear-gradient(var(--b), var(--b)) left bottom / 2px 12px,
+    linear-gradient(var(--b), var(--b)) right bottom / 12px 2px, linear-gradient(var(--b), var(--b)) right bottom / 2px 12px;
+  background-repeat: no-repeat; }
+html[data-scene='nova'][data-look] .item:hover, html[data-scene='nova'][data-look] .item:focus-visible {
+  transform: rotateX(var(--nv-ry, 0deg)) rotateY(var(--nv-rx, 0deg)) translateZ(10px);
+  background-color: rgb(var(--nv) / .07); border-color: rgb(var(--nv) / .4); box-shadow: 0 18px 34px -18px rgba(0,0,0,.85), 0 0 26px -10px rgb(var(--nv) / .55);
+  background-image:
+    linear-gradient(180deg, transparent, rgb(var(--nv) / .95) 50%, transparent),
+    radial-gradient(150px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.14), transparent 62%),
+    linear-gradient(112deg, transparent 22%, rgb(var(--nv) / .16) 44%, rgba(120,225,255,.12) 52%, rgba(255,140,220,.09) 58%, transparent 76%);
+  background-size: 100% 3px, 100% 100%, 240% 100%; background-position: 0 var(--nv-scan), 0 0, var(--nv-gl, 50%) 0; background-repeat: no-repeat;
+  animation: nvScan .75s cubic-bezier(.3,.1,.3,1) 1; }
+html[data-scene='nova'][data-look] .item:hover::after, html[data-scene='nova'][data-look] .item:focus-visible::after { opacity: 1; inset: -1px; }
+@keyframes nvScan { from { --nv-scan: -6%; } to { --nv-scan: 106%; } }
+html[data-scene='nova'][data-look] .item .ititle { color: #EEF1F8; } html[data-scene='nova'][data-look] .item .isub { color: #7F879B; font-family: var(--mono); font-size: 11.5px; }
+html[data-scene='nova'][data-look] .item .quick { background: rgb(var(--nv)); color: #05070E; box-shadow: 0 0 16px -2px rgb(var(--nv) / .7); }
+html[data-scene='nova'][data-look] .item .iacts { background: rgba(8,11,20,.95); border: 1px solid rgb(var(--nv) / .25); }
+html[data-scene='nova'][data-look] .item.drop-before::before, html[data-scene='nova'][data-look] .glist.drop-end::after, html[data-scene='nova'][data-look] .group.drop-before::before, html[data-scene='nova'][data-look] .group.drop-after::after { background: rgb(var(--nv)); box-shadow: 0 0 10px rgb(var(--nv)); }
+html[data-scene='nova'][data-look] .group-add svg { background: rgb(var(--nv) / .14); color: rgb(var(--nv)); }
+html[data-scene='nova'][data-look] .group-add:hover { border-color: rgb(var(--nv) / .45); color: #fff; }
+
+/* появление: группы и плитки вылетают каскадом, как голограмма */
+@keyframes nvHolo { 0% { opacity: 0; transform: translateY(24px) scale(.94) skewX(-7deg); filter: brightness(2.3) saturate(1.7) blur(2px); } 50% { opacity: .9; filter: brightness(1.5) blur(0); } 64% { opacity: .45; } 100% { opacity: 1; transform: none; filter: none; } }
+@keyframes nvRise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+html[data-scene='nova'][data-look] .board.enter .group, html[data-scene='nova'][data-look] .board.enter .group-add { animation: nvRise .45s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(var(--gi, 0) * 70ms); }
+html[data-scene='nova'][data-look] .board.enter .item { animation: nvHolo .5s cubic-bezier(.2,.8,.2,1) backwards; animation-delay: calc(110ms + var(--ii, 0) * 38ms); }
+
+/* кнопки: главная со скошенными углами и пульсирующим контуром */
+html[data-scene='nova'][data-look] .btn.primary { background: linear-gradient(180deg, rgb(var(--nv)), color-mix(in srgb, rgb(var(--nv)) 72%, #05070E)); color: #05070E; border-color: transparent; font-weight: 700; letter-spacing: .02em; box-shadow: 0 1px 0 rgba(255,255,255,.35) inset; }
+html[data-scene='nova'][data-look] .btn.primary:hover { background: linear-gradient(180deg, color-mix(in srgb, rgb(var(--nv)) 82%, #fff), rgb(var(--nv))); box-shadow: 0 1px 0 rgba(255,255,255,.45) inset, 0 0 26px rgb(var(--nv) / .45); }
+html[data-scene='nova'][data-look] #add-btn { border-radius: 0; padding: 0 20px; clip-path: polygon(11px 0, 100% 0, 100% calc(100% - 11px), calc(100% - 11px) 100%, 0 100%, 0 11px); }
+html[data-scene='nova'][data-look] .actions { animation: nvPulse 2.6s ease-in-out infinite; }
+@keyframes nvPulse { 0%, 100% { filter: drop-shadow(0 0 3px rgb(var(--nv) / .55)); } 50% { filter: drop-shadow(0 0 11px rgb(var(--nv) / .95)); } }
+html[data-scene='nova'][data-look] .seg button.on { background: rgb(var(--nv)); color: #05070E; } html[data-scene='nova'][data-look] .seg button.on svg { color: #05070E; }
+html[data-scene='nova'][data-look] .link-btn { color: rgb(var(--nv)); }
+html[data-scene='nova'][data-look] .vault-art { color: rgb(var(--nv)); border-color: rgb(var(--nv) / .3); box-shadow: 0 0 30px -6px rgb(var(--nv) / .5); }
+
+@media (hover: none) {
+  html[data-scene='nova'][data-look] .item:hover { transform: none; animation: none; }
+  html[data-scene='nova'][data-look] .item::after { display: none; }
+}
+@media (max-width: 600px) { html[data-scene='nova'][data-look] .nv-only { display: none !important; } } /* на телефоне звук переключается в настройках */
+@media (max-width: 860px) {
+  html[data-scene='nova'][data-look] .side, html[data-scene='nova'][data-look] .group, html[data-scene='nova'][data-look] .search { -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-scene='nova'][data-look] .item, html[data-scene='nova'][data-look] .item::after { transition: none; }
+  html[data-scene='nova'][data-look] .item:hover, html[data-scene='nova'][data-look] .item:focus-visible { transform: none; animation: none; --nv-scan: -10%; }
+  html[data-scene='nova'][data-look] .actions { animation: none; filter: drop-shadow(0 0 5px rgb(var(--nv) / .6)); }
+  html[data-scene='nova'][data-look] .board.enter .group, html[data-scene='nova'][data-look] .board.enter .item, html[data-scene='nova'][data-look] .board.enter .group-add { animation: none; }
+}
