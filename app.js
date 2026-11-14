@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794652173';
-import * as fb from './lib/firebase.js?v=1794652173';
-import * as st from './lib/store.js?v=1794652173';
-import * as sync from './lib/sync.js?v=1794652173';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794652173';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794652173';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794652173';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt } from './ui.js?v=1794652173';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794652635';
+import * as fb from './lib/firebase.js?v=1794652635';
+import * as st from './lib/store.js?v=1794652635';
+import * as sync from './lib/sync.js?v=1794652635';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794652635';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794652635';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794652635';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794652635';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.2' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.3' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -944,14 +944,14 @@ function openSettings() {
     ...[1, 5, 15, 30, 60, 240].map((v) => h('button', { type: 'button', class: 'chip', onclick: () => { lockMin.value = String(v); lockOn.checked = true; syncLock(); } }, v >= 60 ? v / 60 + ' ч' : v + ' мин')));
   lockOn.addEventListener('change', syncLock); syncLock();
   const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
-  const clip = h('select', {}, [[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']].map(([v, l]) => h('option', { value: v, selected: v === S.prefs.clipClearSec }, l)));
-  const theme = h('select', {}, [['night', 'Ночь (тёмная, стекло)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']].map(([v, l]) => h('option', { value: v, selected: v === (S.prefs.scene || 'night') }, l)));
+  const clip = dropdown([[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']], S.prefs.clipClearSec);
+  const theme = dropdown([['night', 'Ночь (тёмная, стекло)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']], S.prefs.scene || 'night');
   const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
   const autoOn = h('input', { type: 'checkbox', checked: S.prefs.autofill !== false });
   const m = modal({ title: 'Настройки',
     body: [h('div', { class: 'field' }, h('label', { class: 'inline check' }, lockOn, 'Блокировать при бездействии'), lockRow),
-      h('label', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
-      h('label', { class: 'field' }, h('span', {}, 'Фон'), theme),
+      h('div', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
+      h('div', { class: 'field' }, h('span', {}, 'Фон'), theme),
       IS_WEB ? null : h('label', { class: 'inline check' }, autoOn, 'Автоматически подставлять логин и пароль на любых сайтах из хранилища'),
       IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
       IS_WEB ? null : h('button', { type: 'button', class: 'btn', onclick: openAutofillLog }, 'Проверить автозаполнение'),

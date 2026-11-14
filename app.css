@@ -890,3 +890,22 @@ select option:checked { background-color: #6366F1; color: #fff; }
 /* стрелка списка: при фокусе общий сброс фона превращал её в плитку из стрелок поверх текста */
 html[data-look] select, html[data-look] select:focus, html[data-look] select:hover, html[data-look] select:active {
   background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 12px; }
+
+/* ───── свой выпадающий список (вместо встроенного select) ───── */
+.dd { position: relative; width: 100%; }
+.dd-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; height: 40px; padding: 0 12px 0 14px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: 12px; background: color-mix(in srgb, var(--ink) 4%, transparent); color: var(--ink); outline: 0;
+  transition: border-color .15s, box-shadow .15s, background .15s; }
+.dd-btn:hover { border-color: color-mix(in srgb, var(--ink) 30%, transparent); }
+.dd-btn:focus-visible, .dd-btn[aria-expanded='true'] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dd-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-chev { flex: none; display: grid; color: var(--ink-3); transition: transform .2s ease-out; } .dd-btn[aria-expanded='true'] .dd-chev { transform: rotate(180deg); }
+.dd-list { position: fixed; z-index: 100000; overflow-y: auto; padding: 5px; border-radius: 14px; background: #fff; color: #1b1d21; border: 1px solid rgba(0,0,0,.1);
+  box-shadow: 0 18px 50px -10px rgba(0,0,0,.45); animation: ddIn .14s ease-out; }
+html[data-look='night'] .dd-list { background: #14161f; color: #F3F4F6; border-color: rgba(255,255,255,.12); }
+html[data-look='glass'] .dd-list { background: #181a33; color: #fff; border-color: rgba(255,255,255,.2); }
+.dd-opt { padding: 9px 12px; border-radius: 9px; cursor: pointer; line-height: 1.3; }
+.dd-opt.hi { background: color-mix(in srgb, #6366F1 16%, transparent); }
+.dd-opt.on { font-weight: 600; color: #6366F1; } html[data-look='night'] .dd-opt.on, html[data-look='glass'] .dd-opt.on { color: #A5B4FC; }
+@keyframes ddIn { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .dd-list { animation: none; } }

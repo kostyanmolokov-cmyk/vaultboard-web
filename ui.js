@@ -49,6 +49,53 @@ const ICONS = {
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
 };
 
+// Свой выпадающий список вместо встроенного <select>: везде выглядит одинаково, стрелка одна.
+export function dropdown(options, value, onChange) {
+  let cur = String(value);
+  const label = h('span', { class: 'dd-label' });
+  const btn = h('button', { type: 'button', class: 'dd-btn', 'aria-haspopup': 'listbox', 'aria-expanded': 'false' }, label, h('span', { class: 'dd-chev', 'aria-hidden': 'true' }, icon('chevron', 14)));
+  const root = h('div', { class: 'dd' }, btn);
+  const text = (v) => (options.find(([o]) => String(o) === String(v)) || [0, ''])[1];
+  const sync = () => { label.textContent = text(cur); };
+  sync();
+  let list = null, idx = 0;
+  const close = () => {
+    if (!list) return;
+    list.remove(); list = null; btn.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', keys, true);
+    removeEventListener('resize', close); removeEventListener('scroll', close, true);
+  };
+  const choose = (v) => { cur = String(v); sync(); close(); btn.focus(); onChange && onChange(cur); };
+  const outside = (e) => { if (list && !list.contains(e.target) && !root.contains(e.target)) close(); };
+  const mark = () => { [...list.children].forEach((el, i) => { el.classList.toggle('hi', i === idx); if (i === idx) el.scrollIntoView({ block: 'nearest' }); }); };
+  const keys = (e) => {
+    if (!list) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); btn.focus(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(options.length - 1, idx + 1); mark(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(0, idx - 1); mark(); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); choose(options[idx][0]); }
+  };
+  const open = () => {
+    if (list) return close();
+    idx = Math.max(0, options.findIndex(([o]) => String(o) === cur));
+    list = h('div', { class: 'dd-list', role: 'listbox' }, options.map(([v, l], i) =>
+      h('div', { class: 'dd-opt' + (String(v) === cur ? ' on' : ''), role: 'option', 'aria-selected': String(String(v) === cur), onpointerdown: (e) => { e.preventDefault(); choose(v); }, onpointerenter: () => { idx = i; mark(); } }, l)));
+    const r = btn.getBoundingClientRect();
+    Object.assign(list.style, { left: r.left + 'px', width: r.width + 'px', top: (r.bottom + 6) + 'px' });
+    document.body.append(list);
+    const maxH = Math.max(140, innerHeight - r.bottom - 16);
+    list.style.maxHeight = Math.min(maxH, 320) + 'px';
+    if (list.scrollHeight > maxH && r.top > innerHeight / 2) { list.style.top = 'auto'; list.style.bottom = (innerHeight - r.top + 6) + 'px'; list.style.maxHeight = Math.min(r.top - 16, 320) + 'px'; }
+    btn.setAttribute('aria-expanded', 'true'); mark();
+    document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', keys, true);
+    addEventListener('resize', close); addEventListener('scroll', close, true);
+  };
+  btn.addEventListener('click', open);
+  btn.addEventListener('keydown', (e) => { if (!list && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); open(); } });
+  Object.defineProperty(root, 'value', { get: () => cur, set: (v) => { cur = String(v); sync(); } });
+  return root;
+}
+
 export function icon(name, size = 18) {
   const s = document.createElementNS(SVG_NS, 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
