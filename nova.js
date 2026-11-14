@@ -6,7 +6,8 @@ const TONES = { violet: [0.62, 0.45, 1.0], emerald: [0.2, 0.9, 0.62], amber: [1.
   i0: [0.39, 0.40, 0.95], i1: [0.05, 0.65, 0.91], i2: [0.06, 0.73, 0.51], i3: [0.96, 0.62, 0.04], i4: [0.93, 0.28, 0.60], i5: [0.55, 0.36, 0.96] };
 // режим: 'nova' (как было), 'soft' (Тест 1: светлый фон, мягкие звуки, без вспышек и расшифровки), 'full' (Тест 2: светлый фон, все эффекты)
 let mode = 'nova';
-const light = () => mode !== 'nova';
+const light = () => mode === 'soft' || mode === 'full';
+const isle = () => mode !== 'nova'; // макет «Остров» (Тест 1–3); 'dark' = Тест 3: тёмная «Нова» целиком
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
 const FINE = matchMedia('(hover: hover) and (pointer: fine)');
 
@@ -237,7 +238,7 @@ function wire() {
   }, { passive: true });
   document.addEventListener('click', (e) => {
     if (!active) return;
-    if (light() && e.target.closest?.('.if-btn, .isl-tab-add')) { blip(); return; } // копирование в «Острове»
+    if (isle() && e.target.closest?.('.if-btn, .isl-tab-add')) { blip(); return; } // копирование в «Острове»
     const b = e.target.closest?.('#add-btn, .isl-add'); if (!b) return;
     const r = b.getBoundingClientRect();
     if (mode !== 'soft') burst(e.clientX || r.left + r.width / 2, e.clientY || r.top + r.height / 2);
@@ -271,15 +272,15 @@ export function spaceChanged() {
   target = TONES[document.documentElement.dataset.nv] || TONES.violet;
   shock = 0; swoosh();
   if (mode === 'nova') scramble(document.getElementById('crumb'));
-  else if (mode === 'full') requestAnimationFrame(() => requestAnimationFrame(() => scramble(document.querySelector('#island .insp-in h2'))));
+  else if (mode === 'full' || mode === 'dark') requestAnimationFrame(() => requestAnimationFrame(() => scramble(document.querySelector('#island .insp-in h2'))));
   if (REDUCED.matches) loop();
 }
 /** Только цвет, без волны: например после переименования или синхронизации. */
 export function retone() { if (active) { target = TONES[document.documentElement.dataset.nv] || TONES.violet; if (REDUCED.matches) loop(); } }
 /** «Тест 2»: в инспекторе открыли запись — расшифровка заголовка и короткий сигнал. */
 export function itemShown() {
-  if (!active || !light()) return;
-  if (mode === 'full') { scramble(document.querySelector('#island .insp-in h2')); blip(); } else tick();
+  if (!active || !isle()) return;
+  if (mode === 'full' || mode === 'dark') { scramble(document.querySelector('#island .insp-in h2')); blip(); } else tick();
 }
 /** Открыт командный поиск. */
-export function paletteOpened() { if (active && light()) (mode === 'full' ? swoosh : tick)(); }
+export function paletteOpened() { if (active && isle()) (mode === 'soft' ? tick : swoosh)(); }

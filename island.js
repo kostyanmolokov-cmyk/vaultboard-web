@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794690062';
+import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794692228';
 
 // цвета по пространствам: акцент и три пастельных шара на фоне
 const PAL = [
@@ -88,8 +88,8 @@ export function createIsland(c) {
   }
 
   // ───── карточки ─────
-  function card(i) {
-    return h('button', { type: 'button', class: 'ic' + (sel === i.id ? ' sel' : ''), dataset: { id: i.id }, title: 'Нажмите, чтобы посмотреть. Двойной клик: открыть сайт',
+  function card(i, n) {
+    return h('button', { type: 'button', class: 'ic' + (sel === i.id ? ' sel' : ''), dataset: { id: i.id }, style: { '--ii': String(n) }, title: 'Нажмите, чтобы посмотреть. Двойной клик: открыть сайт',
       onclick: () => select(i.id), ondblclick: () => c.activate(i) },
       c.itemIcon(i), h('span', { class: 'ic-t' }, c.cleanTitle(i.title) || c.hostOf(i.url) || '(без названия)'), h('span', { class: 'ic-s' }, subOf(i) || ''));
   }
