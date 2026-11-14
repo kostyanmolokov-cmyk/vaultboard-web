@@ -47,6 +47,8 @@ const ICONS = {
   sliders: '<path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
   folder: '<path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',
   check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  volume: '<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M15.5 9a4 4 0 010 6M18 6.5a7.5 7.5 0 010 11"/>',
+  mute: '<path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/>',
 };
 
 // Свой выпадающий список вместо встроенного <select>: везде выглядит одинаково, стрелка одна.
