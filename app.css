@@ -1085,3 +1085,23 @@ html[data-scene='nova'][data-look] .fav.letter { border: 1px solid rgba(255, 255
 html[data-scene='nova'][data-look] .fav.glyph { background: rgb(var(--nv) / .14); border: 1px solid rgb(var(--nv) / .3); color: rgb(var(--nv)); box-shadow: none; }
 /* подсказка у кнопок на плитке — снизу, чтобы не прятаться под панелью «изменить / избранное» */
 .qbtn[data-tip]::after { bottom: auto; top: calc(100% + 6px); left: auto; right: 0; transform: translate(0, -4px); } .qbtn[data-tip]:hover::after, .qbtn[data-tip]:focus-visible::after { transform: none; }
+
+/* ───── кнопки действий над карточкой: аккуратная плашка по верхнему краю ───── */
+@media (min-width: 601px) and (hover: hover) {
+  html[data-look] .group, html[data-look] .glist:not(.anim) { overflow: visible; }
+  html[data-look] .glist { padding-top: 18px; }
+  html[data-look] .item:hover, html[data-look] .item:focus-within { z-index: 6; }
+  html[data-look] .item .iacts { position: absolute; top: -15px; right: 10px; z-index: 5; display: flex; align-items: center; gap: 1px; margin: 0; padding: 3px; border-radius: 12px;
+    background: rgba(22,24,38,.96); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 8px 20px -6px rgba(0,0,0,.6);
+    opacity: 0; transform: translateY(5px) scale(.96); transform-origin: right bottom; pointer-events: none;
+    transition: opacity .16s ease-out, transform .16s ease-out; }
+  html[data-look] .item:hover .iacts, html[data-look] .item:focus-within .iacts { opacity: 1; transform: none; pointer-events: auto; }
+  html[data-look] .item .iact { width: 28px; height: 28px; border-radius: 9px; color: #b9bdc8; transition: background .15s, color .15s, transform .12s; }
+  html[data-look] .item .iact:hover { background: rgba(99,102,241,.28); color: #fff; }
+  html[data-look] .item .iact:active { transform: scale(.92); }
+  html[data-look] .item .iact + .iact { position: relative; }
+  html[data-look] .item .iact.star { color: #b9bdc8; } html[data-look] .item .iact.star.on { color: #f5b942; }
+  html[data-look='pearl'] .item .iacts { background: rgba(255,255,255,.97); border-color: rgba(110,100,190,.18); box-shadow: 0 8px 20px -8px rgba(80,60,180,.45); }
+  html[data-look='pearl'] .item .iact { color: #6b68a0; } html[data-look='pearl'] .item .iact:hover { background: rgba(99,102,241,.14); color: #4f46e5; }
+  html[data-look='pearl'] .item .iact.star { color: #6b68a0; } html[data-look='pearl'] .item .iact.star.on { color: #e5a82e; }
+}

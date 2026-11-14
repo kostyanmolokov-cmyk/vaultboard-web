@@ -1,12 +1,12 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794664153';
-import * as fb from './lib/firebase.js?v=1794664153';
-import * as st from './lib/store.js?v=1794664153';
-import * as sync from './lib/sync.js?v=1794664153';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794664153';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794664153';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794664153';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794664153';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794673395';
+import * as fb from './lib/firebase.js?v=1794673395';
+import * as st from './lib/store.js?v=1794673395';
+import * as sync from './lib/sync.js?v=1794673395';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794673395';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794673395';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794673395';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794673395';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +15,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.5' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.6' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -71,7 +71,7 @@ function novaTone() {
 async function syncNova() {
   const on = S.prefs?.scene === 'nova';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794664153'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794673395'); } catch (e) { console.error(e); return; }
   nova.setActive(S.prefs?.scene === 'nova', { sound: S.prefs?.sfx !== false });
   renderSfxBtn();
 }
