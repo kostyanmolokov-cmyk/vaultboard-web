@@ -1105,3 +1105,8 @@ html[data-scene='nova'][data-look] .fav.glyph { background: rgb(var(--nv) / .14)
   html[data-look='pearl'] .item .iact { color: #6b68a0; } html[data-look='pearl'] .item .iact:hover { background: rgba(99,102,241,.14); color: #4f46e5; }
   html[data-look='pearl'] .item .iact.star { color: #6b68a0; } html[data-look='pearl'] .item .iact.star.on { color: #e5a82e; }
 }
+
+/* значки сайтов: светлая плитка, чтобы тёмные логотипы читались на любой теме; мелкие значки не растягиваем */
+html[data-look] .item .fav-img, html[data-scene='nova'][data-look] .item .fav-img { background: #f6f7fb; border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.12) inset; padding: 7px; }
+html[data-look] .item .fav-img.px16 { padding: 11px; image-rendering: -webkit-optimize-contrast; }
+html[data-look] .item .fav.letter { box-shadow: 0 2px 8px rgba(0,0,0,.25); }

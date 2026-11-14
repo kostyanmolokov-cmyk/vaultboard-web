@@ -1,12 +1,13 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794673395';
-import * as fb from './lib/firebase.js?v=1794673395';
-import * as st from './lib/store.js?v=1794673395';
-import * as sync from './lib/sync.js?v=1794673395';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794673395';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794673395';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794673395';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794673395';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794674147';
+import * as fb from './lib/firebase.js?v=1794674147';
+import * as st from './lib/store.js?v=1794674147';
+import * as sync from './lib/sync.js?v=1794674147';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794674147';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794674147';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794674147';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794674147';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794674147';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -15,7 +16,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.6' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.7' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -71,7 +72,7 @@ function novaTone() {
 async function syncNova() {
   const on = S.prefs?.scene === 'nova';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794673395'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794674147'); } catch (e) { console.error(e); return; }
   nova.setActive(S.prefs?.scene === 'nova', { sound: S.prefs?.sfx !== false });
   renderSfxBtn();
 }
@@ -499,6 +500,41 @@ function openSite(raw) {
   if (IS_WEB) window.open(url, '_blank', 'noopener'); else chrome.tabs.create({ url });
 }
 
+// ───── значки сайтов: ищем по нескольким источникам, адрес найденного хранится в записи и синхронизируется ─────
+const ICON_RETRY_MS = 7 * 864e5;
+const iconUsable = (i) => typeof i.icon === 'string' && i.icon.startsWith('https://');
+const iconPending = (i) => !i.icon || (i.icon === '-' && Date.now() - (i.iconAt || 0) > ICON_RETRY_MS);
+let iconSaveTimer = 0;
+function saveIconsSoon() {
+  clearTimeout(iconSaveTimer);
+  iconSaveTimer = setTimeout(async () => { if (S.key && S.data) { try { await commit(); } catch { /* сохраним в следующий раз */ } } }, 2500);
+}
+function iconImg(i, host, src, letter) {
+  const img = h('img', { class: 'fav fav-img', alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', src });
+  img.addEventListener('load', () => { if (img.naturalWidth < 28) img.classList.add('px16'); });
+  img.addEventListener('error', () => { // значок пропал: показываем букву и один раз ищем другой
+    if (img.isConnected) img.replaceWith(letter);
+    findIcon(host).then((r) => { if (r && r.url !== src) applyIcon(i, host, r.url, letter); });
+  });
+  return img;
+}
+function applyIcon(i, host, url, letter) {
+  if (i.icon !== url) { i.icon = url; i.iconAt = Date.now(); stamp(i); saveIconsSoon(); }
+  if (letter.isConnected) letter.replaceWith(iconImg(i, host, url, letter));
+}
+function queueIcon(i, host, letter) {
+  findIcon(host).then((r) => {
+    if (r) applyIcon(i, host, r.url, letter);
+    else if (!iconUsable(i) && i.icon !== '-') { i.icon = '-'; i.iconAt = Date.now(); stamp(i); saveIconsSoon(); } // не нашли: повторим через неделю
+  });
+}
+async function refreshIcons() {
+  resetIconCache();
+  let n = 0;
+  for (const it of S.data.items) { if (!it.deleted && it.type !== 'note' && it.url) { it.icon = ''; delete it.iconAt; n++; } }
+  renderBoard(); toast(n ? `Ищу значки для ${n} записей…` : 'Нет записей с адресом сайта');
+}
+
 function itemRow(i) {
   // значок: настоящий фавикон сайта, а если адреса нет или значок не загрузился, буква названия на градиенте в тон теме
   let fav;
@@ -508,19 +544,9 @@ function itemRow(i) {
     let hue = 0; for (const ch of host || nm) hue = (hue * 31 + ch.charCodeAt(0)) % 360;
     const letter = h('span', { class: 'fav letter', style: { '--hue': String(hue) } }, (nm.match(/[\p{L}\p{N}]/u)?.[0] || '?').toUpperCase());
     fav = letter;
-    if (i.url && host && (!IS_WEB || S.prefs.favicons !== false)) {
-      const src = IS_WEB ? `https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${encodeURIComponent('https://' + host)}&size=64` : faviconUrl(normalizeUrl(i.url));
-      const img = h('img', { class: 'fav fav-img', alt: '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer', src });
-      img.addEventListener('error', () => img.replaceWith(letter));
-      img.addEventListener('load', () => { if (img.naturalWidth <= 16) img.replaceWith(letter); }); // 16 px у Google = заглушка-глобус
-      fav = img;
-      if (IS_WEB) { // у сайта нет своего значка: Google отдаёт серую заглушку с кодом 404, вместо неё показываем букву
-        if (noFavicon.get(host) === true) fav = letter;
-        else if (!noFavicon.has(host)) {
-          noFavicon.set(host, false);
-          fetch(src, { referrerPolicy: 'no-referrer' }).then((r) => { if (r.status === 404) { noFavicon.set(host, true); img.replaceWith(letter); } }).catch(() => {});
-        }
-      }
+    if (i.url && host && S.prefs.favicons !== false) {
+      if (iconUsable(i)) fav = iconImg(i, host, i.icon, letter);
+      else if (iconPending(i)) queueIcon(i, host, letter);
     }
   }
   const flds = fieldsOf(i);
@@ -648,6 +674,7 @@ function mainMenu(anchor) {
     { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
     { label: 'Настройки', icon: 'sliders', onClick: openSettings },
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
+    { label: 'Найти значки сайтов заново', icon: 'sync', onClick: refreshIcons },
     { label: 'Где что лежит', icon: 'folder', onClick: openMap },
     IS_WEB ? { label: `Скачать расширение для Chrome (v${EXT_VERSION})`, icon: 'download', onClick: openExtDownload } : null,
     '-',
@@ -1040,7 +1067,7 @@ function openSettings() {
       h('div', { class: 'field' }, h('span', {}, 'Фон'), theme),
       h('label', { class: 'inline check' }, sfxOn, 'Звуки интерфейса (в теме «Нова»)'),
       IS_WEB ? null : h('label', { class: 'inline check' }, autoOn, 'Автоматически подставлять логин и пароль на любых сайтах из хранилища'),
-      IS_WEB ? h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса запрашиваются у Google)') : null,
+      h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса сайтов запрашиваются у Google, DuckDuckGo и самих сайтов)'),
       IS_WEB ? null : h('button', { type: 'button', class: 'btn', onclick: openAutofillLog }, 'Проверить автозаполнение'),
       h('p', { class: 'hint' }, 'Хранилище также блокируется при закрытии браузера или вкладки.'),
       h('p', { class: 'hint' }, IS_WEB ? `Веб-версия. Актуальная версия расширения: ${EXT_VERSION}.` : `Установлена версия расширения: ${EXT_VERSION}.`)],
