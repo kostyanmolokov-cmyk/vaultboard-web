@@ -1201,3 +1201,58 @@ html[data-look='glass'] .group-add:hover { background: rgba(255,255,255,.14); co
 html[data-look='glass'] .group-add:hover svg { background: rgba(165,180,252,.34); }
 /* Персик: пункт «Новое пространство» и подписи ярче */
 html[data-scene='peach'] .side .btn-ghost, html[data-scene='peach'] .side-new { color: #7a4f37; }
+
+/* ───── Типографика в стиле Linear/Raycast (все темы) ───── */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+html[data-look] .item .ititle { font-size: 13px; font-weight: 500; letter-spacing: -.01em; color: rgba(255,255,255,.9); transition: color .18s ease-out; }
+html[data-look] .item:hover .ititle, html[data-look] .item:focus-visible .ititle { color: #fff; }
+html[data-look] .item .isub { font-size: 11.5px; font-style: normal; font-weight: 400; letter-spacing: 0; color: rgba(255,255,255,.58); }
+html[data-look] .item .isub, html[data-look] .item .ititle { font-style: normal; }
+html[data-scene='nova'][data-look] .item .ititle { color: rgba(238,241,248,.92); } html[data-scene='nova'][data-look] .item:hover .ititle { color: #fff; }
+html[data-scene='nova'][data-look] .item .isub { font-size: 11.5px; color: rgba(214,220,236,.62); }
+html[data-look='night'] .item .ititle { color: rgba(243,244,246,.9); } html[data-look='night'] .item:hover .ititle { color: #fff; }
+html[data-look='night'] .item .isub { font-size: 11.5px; color: rgba(184,191,211,.8); }
+html[data-look='glass'] .item .isub { color: rgba(255,255,255,.66); }
+/* светлые темы: заголовок мягкий тёмный, при наведении глубже */
+html[data-look='pearl'] .item .ititle { color: rgba(28,26,56,.88); } html[data-look='pearl'] .item:hover .ititle { color: #14122e; }
+html[data-look='pearl'] .item .isub { font-size: 11.5px; color: #5b5890; }
+html[data-scene='peach'][data-look='pearl'] .item .ititle { color: rgba(60,36,22,.9); } html[data-scene='peach'][data-look='pearl'] .item:hover .ititle { color: #2b1709; }
+html[data-scene='peach'][data-look='pearl'] .item .isub { color: #85583f; }
+/* крупный заголовок пространства и счётчик */
+html[data-look] .hero h1 { font-weight: 500; letter-spacing: -.03em; font-size: 40px; line-height: 1.08; }
+html[data-look] .hero p { font-size: 13px; font-weight: 400; letter-spacing: 0; font-style: normal; }
+html[data-scene='nova'][data-look] .hero p { font-size: 13px; font-weight: 400; }
+@media (max-width: 700px) { html[data-look] .hero h1 { font-size: 30px; } }
+
+/* ───── Шапка: «+ Добавить» всегда целиком ───── */
+.main { min-width: 0; max-width: 100%; }
+.top { box-sizing: border-box; max-width: 100%; min-width: 0; }
+.top .search { flex: 1 1 0; min-width: 0; }
+.top .actions { flex: 0 0 auto; margin-left: auto; padding-right: 2px; }
+.top .actions .btn { white-space: nowrap; flex: none; }
+html[data-look] .top { margin-right: 0; }
+.side-foot .flabel { font-variant-numeric: tabular-nums; }
+
+/* ───── Быстрая навигация по группам ───── */
+.gnav { display: flex; align-items: center; gap: 10px; margin: -2px 0 12px; padding: 0 8px; min-width: 0; }
+.gnav[hidden] { display: none; }
+.gchips { flex: 1 1 0; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 2px; mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent); }
+.gchips::-webkit-scrollbar { display: none; }
+.gchip, .gnav-all { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: 999px; font: 500 12px/1 var(--font); letter-spacing: 0; white-space: nowrap; color: var(--ink-2); background: rgba(255,255,255,.07); border: 1px solid var(--line); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); transition: background .16s, border-color .16s, color .16s, transform .16s; }
+.gchip i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 70%, transparent); flex: none; }
+.gchip span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.gchip b { font-weight: 600; font-size: 11px; opacity: .75; font-variant-numeric: tabular-nums; }
+.gchip:hover, .gnav-all:hover { background: rgba(255,255,255,.14); border-color: color-mix(in srgb, var(--c, var(--accent)) 55%, var(--line-2)); color: var(--ink); transform: translateY(-1px); }
+.gchip:active, .gnav-all:active { transform: scale(.97); }
+.gnav-all { gap: 6px; color: var(--ink); }
+.gnav-all svg { transition: transform .2s; }
+html[data-look='pearl'] .gchip, html[data-look='pearl'] .gnav-all { background: rgba(255,255,255,.6); color: #38355f; border-color: rgba(80,70,160,.16); }
+html[data-look='pearl'] .gchip:hover, html[data-look='pearl'] .gnav-all:hover { background: rgba(255,255,255,.92); color: #14122e; }
+html[data-scene='peach'][data-look='pearl'] .gchip, html[data-scene='peach'][data-look='pearl'] .gnav-all { color: #5a3a29; border-color: rgba(150,90,50,.2); }
+html[data-look='night'] .gchip, html[data-look='night'] .gnav-all { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.08); color: #C9CEDD; }
+html[data-look='night'] .gchip:hover, html[data-look='night'] .gnav-all:hover { background: rgba(99,102,241,.14); color: #fff; }
+.group.flash { animation: gflash 1.3s ease-out; }
+@keyframes gflash { 0%, 35% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 80%, #fff), 0 0 28px color-mix(in srgb, var(--c) 55%, transparent); } 100% { } }
+.group { scroll-margin-top: 90px; }
+@media (max-width: 700px) { .gnav { padding: 0 4px; } .gnav-all { padding: 0 9px; } }
+@media (prefers-reduced-motion: reduce) { .group.flash { animation: none; outline: 2px solid var(--c); } }

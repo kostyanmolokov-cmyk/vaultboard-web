@@ -1,13 +1,14 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794675222';
-import * as fb from './lib/firebase.js?v=1794675222';
-import * as st from './lib/store.js?v=1794675222';
-import * as sync from './lib/sync.js?v=1794675222';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794675222';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794675222';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794675222';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794675222';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794675222';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794675973';
+import * as fb from './lib/firebase.js?v=1794675973';
+import * as st from './lib/store.js?v=1794675973';
+import * as sync from './lib/sync.js?v=1794675973';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794675973';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794675973';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794675973';
+import { cleanTitle } from './lib/text.js?v=1794675973';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794675973';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794675973';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -16,7 +17,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.9.9' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.9.10' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -259,6 +260,7 @@ function renderApp() {
         h('div', { class: 'actions' },
           h('button', { class: 'btn primary', id: 'add-btn', onclick: (e) => addMenu(e.currentTarget) }, icon('plus', 15), 'Добавить'))),
       h('div', { class: 'hero' }, h('h1', { id: 'crumb' }), h('p', { id: 'hsub' })),
+      h('nav', { id: 'gnav', class: 'gnav', 'aria-label': 'Группы', hidden: true }),
       h('main', { id: 'board', class: 'board' }))));
   renderAll();
   renderSfxBtn();
@@ -270,9 +272,11 @@ function renderSyncBadge() {
   const b = $('#sync-btn'); if (!b) return;
   const s = S.sync || {};
   b.dataset.state = !s.enabled ? 'off' : s.lastError ? 'error' : 'ok';
-  const t = s.lastSync ? new Date(s.lastSync).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
-  b.title = !s.enabled ? 'Синхронизация выключена' : s.lastError ? 'Ошибка синхронизации' : 'Синхронизировано ' + t;
-  const lab = b.querySelector('.flabel'); if (lab) lab.textContent = !s.enabled ? 'Синхронизация выкл.' : s.lastError ? 'Ошибка синхронизации' : 'Синхронизировано ' + t;
+  const d = s.lastSync ? new Date(s.lastSync) : null;
+  const t = d ? d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+  const full = d ? d.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+  b.title = !s.enabled ? 'Синхронизация выключена' : s.lastError ? 'Ошибка синхронизации: ' + (s.lastError.message || s.lastError) : 'Синхронизировано: ' + (full || 'ещё не было');
+  const lab = b.querySelector('.flabel'); if (lab) lab.textContent = !s.enabled ? 'Синхр. выкл.' : s.lastError ? 'Ошибка синхр.' : 'Синхр. ' + (t || '—');
 }
 
 // ───── вкладки пространств ─────
@@ -412,18 +416,45 @@ function renderBoard() {
   if (!IS_WEB) autofillBanner(board);
   board.classList.toggle('enter', !!S.animate); S.animate = false;
   let shown = 0, gi = 0, ii = 0;
+  const counts = new Map();
   for (const g of groups) {
     let list = items.filter((i) => i.groupId === g.id).sort((a, b) => a.order - b.order);
     list = list.filter((i) => matches(i, terms) && (S.type === 'all' || (S.type === 'fav' ? i.favorite : i.type === S.type)) && (!S.tag || (i.tags || []).includes(S.tag)));
     if (filtering && !list.length) continue;
-    shown += list.length;
+    shown += list.length; counts.set(g.id, list.length);
     const card = groupCard(g, list, global ? spaces.get(g.spaceId).name : null, filtering);
     card.style.setProperty('--gi', String(Math.min(gi++, 8)));
     card.querySelectorAll('.item').forEach((el) => el.style.setProperty('--ii', String(Math.min(ii++, 14))));
     board.append(card);
   }
+  renderGroupNav(groups, counts, filtering);
   if (!board.children.length) board.append(emptyState(global, groups.length === 0 && !filtering));
   else if (!filtering) board.append(h('button', { class: 'group-add', style: { '--gi': String(Math.min(gi, 8)) }, onclick: () => groupDialog() }, icon('plus', 16), 'Новая группа'));
+}
+
+// Полоса быстрой навигации: чипсы групп и «Свернуть/Развернуть все» (когда групп 5 и больше)
+function renderGroupNav(groups, counts, filtering) {
+  const nav = $('#gnav'); if (!nav) return;
+  nav.replaceChildren();
+  const on = !filtering && groups.length >= 5;
+  nav.hidden = !on; if (!on) return;
+  const allCollapsed = groups.every((g) => S.ui.collapsed?.[g.id]);
+  const chips = h('div', { class: 'gchips' }, groups.map((g) => h('button', { class: 'gchip', style: { '--c': g.color || GROUP_COLORS[0] }, title: 'Перейти к группе «' + cleanTitle(g.name) + '»', onclick: () => jumpToGroup(g) },
+    h('i', { 'aria-hidden': 'true' }), h('span', {}, cleanTitle(g.name)), h('b', {}, String(counts.get(g.id) ?? 0)))));
+  nav.append(chips, h('button', { class: 'gnav-all', title: allCollapsed ? 'Развернуть все группы' : 'Свернуть все группы', onclick: () => setAllCollapsed(groups, !allCollapsed) },
+    icon('chevron', 14), allCollapsed ? 'Развернуть все' : 'Свернуть все'));
+}
+function setAllCollapsed(groups, v) {
+  const c = { ...(S.ui.collapsed || {}) };
+  for (const g of groups) c[g.id] = v;
+  S.ui.collapsed = c; st.setUi({ collapsed: c });
+  renderBoard();
+}
+function jumpToGroup(g) {
+  if (S.ui.collapsed?.[g.id]) { S.ui.collapsed = { ...S.ui.collapsed, [g.id]: false }; st.setUi({ collapsed: S.ui.collapsed }); renderBoard(); }
+  const el = document.querySelector(`.group[data-id="${CSS.escape(g.id)}"]`); if (!el) return;
+  el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400);
 }
 
 function emptyState(global, noGroups) {
@@ -447,7 +478,7 @@ function groupCard(g, list, spaceName, filtering) {
   el.append(h('header', { class: 'ghead' },
     grip,
     h('button', { class: 'gname', 'aria-expanded': String(!collapsed), title: collapsed ? 'Развернуть' : 'Свернуть', onclick: () => toggleGroup(g) },
-      h('span', { class: 'chev' }, icon('chevron', 14)), h('h3', {}, g.name), spaceName ? h('em', { class: 'gspace' }, spaceName) : null, h('span', { class: 'gcount' }, String(list.length))),
+      h('span', { class: 'chev' }, icon('chevron', 14)), h('h3', {}, cleanTitle(g.name)), spaceName ? h('em', { class: 'gspace' }, spaceName) : null, h('span', { class: 'gcount' }, String(list.length))),
     h('button', { class: 'icon-btn sm', title: 'Добавить запись в группу', 'aria-label': 'Добавить запись в группу', onclick: (e) => addMenu(e.currentTarget, g.id) }, icon('plus', 16)),
     h('button', { class: 'icon-btn sm', title: 'Действия с группой', 'aria-label': 'Действия с группой', onclick: (e) => groupMenu(e.currentTarget, g) }, icon('more', 16))));
   if (!collapsed) {
@@ -562,13 +593,13 @@ function itemRow(i) {
     for (const x of flds.filter((x) => x.value).slice(0, 2)) q.push(tipBtn('iact', 'copy', 'Копировать: ' + (x.name || 'поле'), () => copy(x.value, (x.name || 'Поле') + ': скопировано', true), 17));
     if (!q.length && i.notes) q.push(tipBtn('iact', 'copy', 'Копировать текст', () => copy(i.notes, 'Текст скопирован')));
   }
-  const row = h('div', { class: 'item ' + i.type, dataset: { id: i.id }, draggable: true, tabindex: '0', role: 'button', 'aria-label': `${TYPE_LABEL[i.type]}: ${i.title}`,
+  const row = h('div', { class: 'item ' + i.type, dataset: { id: i.id }, draggable: true, tabindex: '0', role: 'button', 'aria-label': `${TYPE_LABEL[i.type]}: ${cleanTitle(i.title)}`,
     onclick: () => activate(i),
     onkeydown: (e) => { if (e.key === 'Enter') activate(i); },
     ondragstart: (e) => { S.drag = { type: 'item', id: i.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', i.id); row.classList.add('dragging'); },
     ondragend: () => { S.drag = null; row.classList.remove('dragging'); document.querySelectorAll('.over,.drop-before,.drop-end,.drop').forEach((n) => n.classList.remove('over', 'drop-before', 'drop-end', 'drop')); } },
     fav,
-    h('span', { class: 'ititle' }, i.title || hostOf(i.url) || '(без названия)'),
+    h('span', { class: 'ititle' }, cleanTitle(i.title) || hostOf(i.url) || '(без названия)'),
     sub ? h('span', { class: 'isub' }, sub) : null,
     h('span', { class: 'iacts', role: 'toolbar', 'aria-label': 'Действия с записью' },
       q, q.length ? h('i', { class: 'iact-sep', 'aria-hidden': 'true' }) : null,
