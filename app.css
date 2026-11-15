@@ -1955,3 +1955,5 @@ html[data-bgtest][data-theme='dark'] :is(.group, .ig) { background-color: rgba(1
 .bgt-r input { width: 100%; accent-color: #4f46e5; }
 .bgt-r output { text-align: right; font-variant-numeric: tabular-nums; color: #64748b; }
 @media (max-width: 600px) { .bgt-panel { left: 10px; right: 10px; width: auto; bottom: 10px; } }
+/* прокрутка выпадающего списка не перескакивает на страницу под ним */
+.dd-list { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }

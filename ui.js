@@ -65,11 +65,13 @@ export function dropdown(options, value, onChange) {
     if (!list) return;
     list.remove(); list = null; btn.setAttribute('aria-expanded', 'false');
     document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', keys, true);
-    removeEventListener('resize', close); removeEventListener('scroll', close, true);
+    removeEventListener('resize', close); removeEventListener('scroll', onScroll, true);
   };
+  // прокрутка самого списка его не закрывает, закрывает только прокрутка страницы под ним
+  const onScroll = (e) => { if (list && (e.target === list || list.contains(e.target))) return; close(); };
   const choose = (v) => { cur = String(v); sync(); close(); btn.focus(); onChange && onChange(cur); };
   const outside = (e) => { if (list && !list.contains(e.target) && !root.contains(e.target)) close(); };
-  const mark = () => { [...list.children].forEach((el, i) => { el.classList.toggle('hi', i === idx); if (i === idx) el.scrollIntoView({ block: 'nearest' }); }); };
+  const mark = (scroll = true) => { [...list.children].forEach((el, i) => { el.classList.toggle('hi', i === idx); if (scroll && i === idx) el.scrollIntoView({ block: 'nearest' }); }); };
   const keys = (e) => {
     if (!list) return;
     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); btn.focus(); }
@@ -81,7 +83,7 @@ export function dropdown(options, value, onChange) {
     if (list) return close();
     idx = Math.max(0, options.findIndex(([o]) => String(o) === cur));
     list = h('div', { class: 'dd-list', role: 'listbox' }, options.map(([v, l], i) =>
-      h('div', { class: 'dd-opt' + (String(v) === cur ? ' on' : ''), role: 'option', 'aria-selected': String(String(v) === cur), onpointerdown: (e) => { e.preventDefault(); choose(v); }, onpointerenter: () => { idx = i; mark(); } }, l)));
+      h('div', { class: 'dd-opt' + (String(v) === cur ? ' on' : ''), role: 'option', 'aria-selected': String(String(v) === cur), onpointerdown: (e) => { e.preventDefault(); choose(v); }, onpointerenter: () => { idx = i; mark(false); } }, l)));
     const r = btn.getBoundingClientRect();
     Object.assign(list.style, { left: r.left + 'px', width: r.width + 'px', top: (r.bottom + 6) + 'px' });
     document.body.append(list);
@@ -90,7 +92,7 @@ export function dropdown(options, value, onChange) {
     if (list.scrollHeight > maxH && r.top > innerHeight / 2) { list.style.top = 'auto'; list.style.bottom = (innerHeight - r.top + 6) + 'px'; list.style.maxHeight = Math.min(r.top - 16, 320) + 'px'; }
     btn.setAttribute('aria-expanded', 'true'); mark();
     document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', keys, true);
-    addEventListener('resize', close); addEventListener('scroll', close, true);
+    addEventListener('resize', close); addEventListener('scroll', onScroll, true);
   };
   btn.addEventListener('click', open);
   btn.addEventListener('keydown', (e) => { if (!list && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); open(); } });
