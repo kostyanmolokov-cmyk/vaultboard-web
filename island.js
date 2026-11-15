@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726691';
+import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1794727718';
 
 // цвета по пространствам: акцент и три пастельных шара на фоне
 const PAL = [
@@ -24,6 +24,12 @@ export function createIsland(c) {
   const subOf = (i) => i.type === 'login' ? i.username : i.type === 'link' ? c.hostOf(i.url)
     : ((i.notes || '').split('\n').find((l) => l.trim()) || c.fieldsOf(i).map((x) => x.name).filter(Boolean).join(' · '));
 
+  // Esc закрывает инспектор (если не открыт поиск или другое окно)
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !sel || !root?.isConnected || palEl || document.querySelector('.scrim, .popmenu')) return;
+    if (document.documentElement.dataset.layout !== 'island') return;
+    e.preventDefault(); sel = null; render();
+  });
   function mount(el) {
     root = el; sel = null; shownSel = null; prevPill = null;
     root.replaceChildren(h('div', { class: 'isl-bg', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')), ui = h('div', { class: 'isl-ui' }));
@@ -131,7 +137,7 @@ export function createIsland(c) {
           h('div', { class: 'insp-badges' },
             g ? h('span', { class: 'badge', style: { '--c': g.color || '#6366f1' } }, h('i'), c.cleanTitle(g.name)) : null,
             h('span', { class: 'badge soft' }, spaceName(g?.spaceId)), h('span', { class: 'badge soft' }, ({ login: 'Логин', link: 'Ссылка', note: 'Заметка' })[i.type]))),
-        h('button', { class: 'if-btn insp-close', title: 'Закрыть', 'aria-label': 'Закрыть', onclick: () => { sel = null; render(); } }, icon('x', 16))),
+        h('button', { class: 'if-btn insp-close', title: 'Закрыть (Esc)', 'aria-label': 'Закрыть', onclick: () => { sel = null; render(); } }, icon('x', 16))),
       i.type === 'login' && i.username ? field('Логин', i.username, { copyMsg: 'Логин скопирован' }) : null,
       i.type === 'login' && i.password ? field('Пароль', i.password, { secret: true, copyMsg: 'Пароль скопирован', copySecret: true }) : null,
       i.url ? field('Адрес сайта', i.url, { link: true, copyMsg: 'Адрес скопирован' }) : null,
@@ -191,10 +197,14 @@ export function createIsland(c) {
     const chips = shownGroups.length >= 2 ? wheelToX(h('div', { class: 'isl-gchips', role: 'navigation', 'aria-label': 'Перейти к группе' }, shownGroups.map(([g, n]) =>
       h('button', { class: 'isl-gchip', dataset: { gid: g.id }, style: { '--c': g.color || '#6366f1' }, title: 'Перейти к группе «' + c.cleanTitle(g.name) + '»', onclick: () => jump(g) },
         h('i'), h('span', {}, c.cleanTitle(g.name)), h('b', {}, String(n)))))) : null;
-    const list = h('div', { class: 'isl-list' + (animateList ? ' enter' : '') }, chips ? h('div', { class: 'isl-gnav' }, chips) : null, blocks.length ? blocks : h('div', { class: 'isl-none' }, groups.length ? 'Нет записей с такими фильтрами' : 'В этом пространстве пока нет групп'),
+    const allBtn = chips ? h('button', { class: 'isl-gall', title: 'Список всех групп', 'aria-haspopup': 'menu',
+      onclick: (e) => popMenu(e.currentTarget, shownGroups.map(([g, n]) => ({ label: `${c.cleanTitle(g.name)} · ${n}`, icon: 'folder', onClick: () => jump(g) }))) },
+      'Все ' + shownGroups.length, icon('chevron', 13)) : null;
+    const list = h('div', { class: 'isl-list' + (animateList ? ' enter' : '') }, chips ? h('div', { class: 'isl-gnav' }, chips, allBtn) : null, blocks.length ? blocks : h('div', { class: 'isl-none' }, groups.length ? 'Нет записей с такими фильтрами' : 'В этом пространстве пока нет групп'),
       h('button', { class: 'ig-add', onclick: () => c.groupDialog() }, icon('plus', 15), 'Новая группа'));
     animateList = false;
-    const insp = h('aside', { class: 'isl-insp' + (shownSel !== sel ? ' enter' : ''), 'aria-label': 'Запись' }, inspector(spaceItems));
+    const opening = sel && !shownSel;
+    const insp = sel ? h('aside', { class: 'isl-insp' + (shownSel !== sel ? ' enter' : '') + (opening ? ' slide' : ''), 'aria-label': 'Запись' }, inspector(spaceItems)) : null;
     shownSel = sel;
     const y = scrollY;
     ui.replaceChildren(topBar(spaces), sub, h('div', { class: 'isl-work' + (sel ? ' has-sel' : ''), onclick: (e) => { if (e.target === e.currentTarget && sel && matchMedia('(max-width: 980px)').matches) { sel = null; render(); } } }, list, insp));

@@ -1785,3 +1785,46 @@ html[data-scene='nova'] .cl-bar > i, html[data-scene='nova'] .cl-rp { background
   .cl-row, .cl-up { grid-template-columns: 36px minmax(0, 1fr) auto; gap: 10px; padding: 8px 4px 8px 6px; }
   .cl-ico { width: 36px; height: 36px; }
 }
+
+/* ═══════════ «Остров» и «Тесты»: читаемые карточки, умный Split-View, чипсы в одну строку ═══════════ */
+/* 1. мини-карточки: крупнее, плотнее, без сжатого трекинга */
+html[data-layout='island'] .ic { grid-template-columns: 40px minmax(0, 1fr); column-gap: 14px; row-gap: 2px; min-height: 66px; padding: 14px; border-radius: 16px;
+  background-color: rgba(255,255,255,.9); border: 1px solid rgba(203,213,225,.85); }
+html[data-layout='island'] .ic:hover { background-color: #fff; }
+html[data-layout='island'] .ic-t { font-size: 14px; font-weight: 500; letter-spacing: normal; line-height: 1.3; color: #0F172A; }
+html[data-layout='island'] .ic-s { font-size: 12.5px; font-weight: 400; font-style: normal; letter-spacing: normal; line-height: 1.35; color: #64748B; font-family: var(--font); }
+html[data-layout='island'] #island .ic .fav { width: 40px; height: 40px; }
+html[data-scene='nova'][data-layout='island'] .ic { background-color: rgba(15,23,42,.8); border-color: rgba(148,163,184,.2); border-top-color: rgba(148,163,184,.28); }
+html[data-scene='nova'][data-layout='island'] .ic:hover, html[data-scene='nova'][data-layout='island'] .ic:focus-visible { background-color: color-mix(in srgb, rgb(var(--nv)) 12%, rgba(15,23,42,.9)); }
+html[data-scene='nova'][data-layout='island'] .ic.sel { background-color: color-mix(in srgb, rgb(var(--nv)) 16%, rgba(15,23,42,.9)); }
+html[data-scene='nova'][data-layout='island'] .ic-t { color: #F8FAFC; }
+html[data-scene='nova'][data-layout='island'] .ic-s { color: #94A3B8; font-family: var(--font); }
+
+/* 2. без выбранной записи список во всю ширину (3 колонки), с выбранной справа выезжает инспектор */
+html[data-layout='island'] .isl-work { grid-template-columns: minmax(0, 1fr); }
+html[data-layout='island'] .isl-work.has-sel { grid-template-columns: minmax(0, 1fr) 400px; }
+html[data-layout='island'] .ig-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+html[data-layout='island'] .isl-work.has-sel .ig-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html[data-layout='island'] .isl-insp.slide { animation: islslide .42s cubic-bezier(.2, .85, .25, 1); }
+@keyframes islslide { from { opacity: 0; transform: translateX(36px); } }
+html[data-layout='island'] .insp-close { display: grid; margin-left: auto; align-self: flex-start; }
+@media (max-width: 1240px) { html[data-layout='island'] .isl-work.has-sel { grid-template-columns: minmax(0, 1fr) 380px; } }
+@media (max-width: 1180px) { html[data-layout='island'] .ig-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } html[data-layout='island'] .isl-work.has-sel .ig-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 980px) {
+  html[data-layout='island'] .isl-work.has-sel { grid-template-columns: minmax(0, 1fr); }
+  html[data-layout='island'] .isl-work.has-sel .ig-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html[data-layout='island'] .isl-insp.slide { animation: islup .36s cubic-bezier(.2, .85, .25, 1); }
+}
+@keyframes islup { from { opacity: 0; transform: translateY(40px); } }
+@media (max-width: 640px) { html[data-layout='island'] .ig-grid, html[data-layout='island'] .isl-work.has-sel .ig-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (prefers-reduced-motion: reduce) { html[data-layout='island'] .isl-insp.slide { animation: none; } }
+
+/* 3. чипсы групп в одну строку: листаются вбок (колёсиком тоже), справа «Все N ▾» */
+html[data-layout='island'] .isl-gnav { display: flex; align-items: center; gap: 8px; }
+html[data-layout='island'] .isl-gchips { flex: 1 1 0; min-width: 0; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; max-height: none; scrollbar-width: none; scroll-behavior: smooth; padding: 2px;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+html[data-layout='island'] .isl-gchips::-webkit-scrollbar { display: none; }
+.isl-gall { flex: none; display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px 0 12px; border-radius: 999px; border: 1px solid rgba(203,213,225,.9); background: #fff; color: #0f172a; font: 600 12px/1 var(--font); cursor: pointer; white-space: nowrap; }
+.isl-gall:hover { border-color: var(--a); color: var(--a); }
+html[data-scene='nova'][data-layout='island'] .isl-gall { background: rgba(15,23,42,.8); border-color: rgba(148,163,184,.25); color: #E2E8F0; }
+html[data-scene='nova'][data-layout='island'] .isl-gall:hover { border-color: rgb(var(--nv) / .6); color: #fff; }
