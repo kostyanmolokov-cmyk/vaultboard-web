@@ -1908,3 +1908,18 @@ html[data-layout='island'] .isl-bg i::after { display: block; opacity: .6; }
 html:is([data-scene='test1'], [data-scene='test2']) .nv-bg { opacity: .8; filter: blur(4px) saturate(1.05); transform: scale(1.02); }
 .isl-orb ellipse, .isl-orb .o2 ellipse, .isl-orb .o3 ellipse { stroke-width: 1.1; opacity: .38; }
 .isl-orb .oy { opacity: .95; }
+
+/* ═══════════ «Остров»: шары как в «Жемчуге» — чёткие, объёмные, ненавязчивые (в цветах пространства) ═══════════ */
+html[data-layout='island'] .isl-bg i { opacity: 1; filter: none; animation: drift 16s ease-in-out infinite; will-change: transform;
+  background: radial-gradient(circle at 32% 28%, #fff 0, color-mix(in srgb, var(--c) 8%, #fff) 7%, color-mix(in srgb, var(--c) 42%, #fff) 30%, var(--c) 66%, color-mix(in srgb, var(--c) 72%, #1e1b4b) 100%);
+  box-shadow: inset -26px -36px 70px color-mix(in srgb, var(--c) 55%, rgba(30,27,75,.5)), inset 16px 20px 46px rgba(255,255,255,.75), 0 50px 90px -24px color-mix(in srgb, var(--c) 55%, transparent); }
+html[data-layout='island'] .isl-bg i::after { display: none; }
+html[data-layout='island'] .isl-bg i:nth-child(1) { width: 380px; height: 380px; left: auto; right: -90px; top: 90px; bottom: auto; }
+html[data-layout='island'] .isl-bg i:nth-child(2) { width: 210px; height: 210px; left: 25%; right: auto; top: auto; bottom: 7%; animation-duration: 12s; animation-delay: -4s;
+  box-shadow: inset -16px -22px 46px color-mix(in srgb, var(--c) 50%, rgba(30,27,75,.45)), inset 10px 12px 30px rgba(255,255,255,.75), 0 36px 60px -20px color-mix(in srgb, var(--c) 50%, transparent); }
+html[data-layout='island'] .isl-bg i:nth-child(3) { width: 130px; height: 130px; left: auto; right: 27%; top: auto; bottom: 17%; animation-duration: 9.5s; animation-delay: -7s;
+  box-shadow: inset -10px -14px 30px color-mix(in srgb, var(--c) 50%, rgba(30,27,75,.4)), inset 7px 8px 20px rgba(255,255,255,.8), 0 24px 40px -14px color-mix(in srgb, var(--c) 50%, transparent); }
+@media (max-width: 700px) { html[data-layout='island'] .isl-bg i:nth-child(1) { width: 240px; height: 240px; right: -70px; } html[data-layout='island'] .isl-bg i:nth-child(2) { width: 140px; height: 140px; } html[data-layout='island'] .isl-bg i:nth-child(3) { width: 90px; height: 90px; } }
+/* «Тесты 1–2»: 3D-фон тоже чёткий, без расфокуса */
+html:is([data-scene='test1'], [data-scene='test2']) .nv-bg { opacity: .9; filter: none; transform: none; }
+@media (prefers-reduced-motion: reduce) { html[data-layout='island'] .isl-bg i { animation: none; } }

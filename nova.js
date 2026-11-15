@@ -127,7 +127,7 @@ function build() {
 function resize() {
   if (!canvas) return;
   // рисуем в уменьшенном разрешении: фон всё равно размыт стеклом, а видеокарте в разы легче
-  const w = innerWidth, hgt = innerHeight, k = light() ? Math.min(0.8, Math.sqrt(900000 / Math.max(1, w * hgt))) : Math.min(0.75, Math.sqrt(640000 / Math.max(1, w * hgt)));
+  const w = innerWidth, hgt = innerHeight, k = light() ? Math.min(1, Math.sqrt(1400000 / Math.max(1, w * hgt))) : Math.min(0.75, Math.sqrt(640000 / Math.max(1, w * hgt)));
   canvas.width = Math.max(2, Math.round(w * k)); canvas.height = Math.max(2, Math.round(hgt * k));
   if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
 }
