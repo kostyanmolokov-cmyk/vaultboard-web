@@ -83,9 +83,9 @@ void main(){
       vec3 ir=.5+.5*cos(6.2831*(fr*.8+dot(n,vec3(.3,.5,.2))*.3+id*.07+uTime*.02+vec3(0.,.33,.67)));
       vec3 l=normalize(vec3(-.5,.8,.55));
       float dif=max(dot(n,l),0.),rl=max(dot(reflect(-l,n),v),0.),sp=pow(rl,70.),sp2=pow(rl,9.);
-      vec3 body=mix(uAcc,uAcc*uAcc,.2),deep=mix(uAcc,vec3(1.),.5);
+      vec3 body=mix(uAcc,uAcc*uAcc,.2),deep=mix(uAcc*.6,vec3(1.),.22);
       vec3 c=mix(deep,body,smoothstep(-.25,.85,dif));
-      c=mix(c,mix(uAcc,vec3(1.),.78),pow(1.-ndv,2.2)*.55);
+      c=mix(c,mix(uAcc*.7,vec3(1.),.35),pow(1.-ndv,2.2)*.55);
       c+=mix(vec3(1.),uAcc,.25)*pow(1.-ndv,3.5)*.45*clamp(n.y+.4,0.,1.);
       c+=uAcc*clamp(-n.y,0.,1.)*.22+ir*fr*.1;
       c+=vec3(1.)*(sp*1.15+sp2*.16);
@@ -127,7 +127,7 @@ function build() {
 function resize() {
   if (!canvas) return;
   // рисуем в уменьшенном разрешении: фон всё равно размыт стеклом, а видеокарте в разы легче
-  const w = innerWidth, hgt = innerHeight, k = light() ? Math.min(0.6, Math.sqrt(500000 / Math.max(1, w * hgt))) : Math.min(0.75, Math.sqrt(640000 / Math.max(1, w * hgt)));
+  const w = innerWidth, hgt = innerHeight, k = light() ? Math.min(0.8, Math.sqrt(900000 / Math.max(1, w * hgt))) : Math.min(0.75, Math.sqrt(640000 / Math.max(1, w * hgt)));
   canvas.width = Math.max(2, Math.round(w * k)); canvas.height = Math.max(2, Math.round(hgt * k));
   if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
 }
