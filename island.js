@@ -1,16 +1,22 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1794727718';
+import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1794728403';
 
-// цвета по пространствам: акцент и три пастельных шара на фоне
+// цвета по пространствам: акцент, три пастельных шара (старый фон) и три сочных цвета глянцевых сфер.
+// k — имя тона для 3D-фона «Тестов» (nova.js). Тон выбирается по названию пространства, иначе по порядку.
 const PAL = [
-  { a: '#6366f1', b: ['#c7d2fe', '#fbcfe8', '#bae6fd'] },
-  { a: '#0ea5e9', b: ['#bae6fd', '#c7f9e5', '#e0e7ff'] },
-  { a: '#10b981', b: ['#bbf7d0', '#fef3c7', '#bae6fd'] },
-  { a: '#f59e0b', b: ['#fde68a', '#fecaca', '#fbcfe8'] },
-  { a: '#ec4899', b: ['#fbcfe8', '#ddd6fe', '#fed7aa'] },
-  { a: '#8b5cf6', b: ['#ddd6fe', '#bfdbfe', '#fbcfe8'] },
+  { k: 'indigo', a: '#6366f1', b: ['#c7d2fe', '#fbcfe8', '#bae6fd'], s: ['#6366f1', '#a855f7', '#38bdf8'] },
+  { k: 'sapphire', a: '#2563eb', b: ['#bae6fd', '#c7f9e5', '#e0e7ff'], s: ['#2563eb', '#06b6d4', '#6366f1'] },
+  { k: 'teal', a: '#059669', b: ['#bbf7d0', '#fef3c7', '#bae6fd'], s: ['#10b981', '#14b8a6', '#22d3ee'] },
+  { k: 'coral', a: '#ea580c', b: ['#fde68a', '#fecaca', '#fbcfe8'], s: ['#f97316', '#f43f5e', '#f59e0b'] },
+  { k: 'fuchsia', a: '#c026d3', b: ['#fbcfe8', '#ddd6fe', '#fed7aa'], s: ['#d946ef', '#8b5cf6', '#ec4899'] },
+  { k: 'sky', a: '#0284c7', b: ['#ddd6fe', '#bfdbfe', '#fbcfe8'], s: ['#0ea5e9', '#6366f1', '#2dd4bf'] },
 ];
+const BY_NAME = [[/дом|home|семь|family/i, 'coral'], [/разраб|dev|код|code|прог|сайт/i, 'sapphire'], [/каф|caf|коф|coffee|ресторан|еда/i, 'teal'], [/переб|разобр|sort|inbox|входящ/i, 'fuchsia']];
+export function spaceTone(name, index) {
+  for (const [re, k] of BY_NAME) if (re.test(name || '')) return PAL.find((p) => p.k === k);
+  return PAL[Math.max(0, index) % PAL.length];
+}
 const TYPES = [['all', 'Все'], ['login', 'Логины'], ['link', 'Ссылки'], ['note', 'Заметки'], ['fav', 'Избранное']];
 const lc = (s) => String(s || '').toLowerCase();
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -32,7 +38,12 @@ export function createIsland(c) {
   });
   function mount(el) {
     root = el; sel = null; shownSel = null; prevPill = null;
-    root.replaceChildren(h('div', { class: 'isl-bg', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')), ui = h('div', { class: 'isl-ui' }));
+    const ring = (cls, dash) => { const o = h('div', { class: 'orb ' + cls });
+      o.innerHTML = `<svg viewBox="-100 -100 200 200" preserveAspectRatio="none"><ellipse rx="99" ry="99" vector-effect="non-scaling-stroke"${dash ? ` stroke-dasharray="${dash}"` : ''}/></svg><i class="ox"><i class="oy"></i></i>`;
+      return o; };
+    root.replaceChildren(h('div', { class: 'isl-bg', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')),
+      h('div', { class: 'isl-orb', 'aria-hidden': 'true' }, ring('o1'), ring('o2'), ring('o3')),
+      ui = h('div', { class: 'isl-ui' }));
     root.addEventListener('pointermove', (e) => {
       if (raf || e.pointerType === 'touch') return;
       const t = e.target.closest?.('.ig, .isl-insp, .ic'); if (!t) return;
@@ -63,7 +74,7 @@ export function createIsland(c) {
     const nav = h('nav', { class: 'isl-tabs', role: 'tablist', 'aria-label': 'Пространства' }, h('i', { class: 'isl-pill' }));
     spaces.forEach((sp, n) => {
       const on = sp.id === S.spaceId;
-      const tab = h('div', { class: 'isl-tab' + (on ? ' on' : ''), role: 'tab', tabindex: '0', 'aria-selected': String(on), style: { '--c': PAL[n % PAL.length].a },
+      const tab = h('div', { class: 'isl-tab' + (on ? ' on' : ''), role: 'tab', tabindex: '0', 'aria-selected': String(on), style: { '--c': spaceTone(sp.name, n).a },
         onclick: () => pick(sp.id), oncontextmenu: (e) => { e.preventDefault(); c.spaceMenu(tab, sp); },
         onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(sp.id); } } },
         h('i', { class: 'dotc' }), h('span', {}, sp.name),
@@ -168,8 +179,8 @@ export function createIsland(c) {
     const spaces = c.liveSpaces(S.data);
     if (!spaces.length) return;
     const si = Math.max(0, spaces.findIndex((s) => s.id === S.spaceId));
-    const pal = PAL[si % PAL.length];
-    root.style.setProperty('--a', pal.a); pal.b.forEach((v, k) => root.style.setProperty('--b' + (k + 1), v));
+    const pal = spaceTone(spaces[si]?.name, si);
+    root.style.setProperty('--a', pal.a); pal.b.forEach((v, k) => root.style.setProperty('--b' + (k + 1), v)); pal.s.forEach((v, k) => root.style.setProperty('--s' + (k + 1), v));
 
     const spaceItems = c.itemsInSpace(S.spaceId);
     if (sel && !spaceItems.some((x) => x.id === sel)) sel = null;

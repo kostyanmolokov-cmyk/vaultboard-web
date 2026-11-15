@@ -1828,3 +1828,53 @@ html[data-layout='island'] .isl-gchips::-webkit-scrollbar { display: none; }
 .isl-gall:hover { border-color: var(--a); color: var(--a); }
 html[data-scene='nova'][data-layout='island'] .isl-gall { background: rgba(15,23,42,.8); border-color: rgba(148,163,184,.25); color: #E2E8F0; }
 html[data-scene='nova'][data-layout='island'] .isl-gall:hover { border-color: rgb(var(--nv) / .6); color: #fff; }
+
+/* ═══════════ Светлая «стратосфера»: глянцевые сферы, орбиты, плотные карточки (Остров, Тест 1, Тест 2) ═══════════ */
+@property --s1 { syntax: '<color>'; inherits: true; initial-value: #6366f1; }
+@property --s2 { syntax: '<color>'; inherits: true; initial-value: #a855f7; }
+@property --s3 { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
+html[data-layout='island'] .isl { transition: --s1 1.2s ease, --s2 1.2s ease, --s3 1.2s ease; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='indigo'] { --nv: 99 102 241; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='sapphire'] { --nv: 37 99 235; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='teal'] { --nv: 16 185 129; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='coral'] { --nv: 249 115 22; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='fuchsia'] { --nv: 217 70 239; }
+html:is([data-scene='test1'], [data-scene='test2'])[data-nv='sky'] { --nv: 14 165 233; }
+/* «Остров»: каждая сфера — глянцевый шар с бликом, насыщенным телом, тёмным рефлексом по краю и цветной тенью */
+html[data-layout='island'] .isl-bg i { filter: none; opacity: .92; box-shadow: none;
+  background:
+    radial-gradient(circle at 31% 25%, rgba(255,255,255,.98) 0 2.5%, rgba(255,255,255,.7) 6%, rgba(255,255,255,0) 20%),
+    radial-gradient(circle at 50% 108%, rgba(255,255,255,.4), rgba(255,255,255,0) 32%),
+    radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--c) 72%, #fff) 0%, var(--c) 34%, color-mix(in srgb, var(--c) 72%, #0b1030) 62%, color-mix(in srgb, var(--c) 48%, #0b1030) 71%); }
+html[data-layout='island'] .isl-bg i::after { content: ''; position: absolute; left: 12%; right: 12%; bottom: -9%; height: 14%; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 55%, transparent), transparent); filter: blur(10px); }
+html[data-layout='island'] .isl-bg i:nth-child(1) { --c: var(--s1); width: 34vmax; height: 34vmax; left: -6vmax; top: -8vmax; }
+html[data-layout='island'] .isl-bg i:nth-child(2) { --c: var(--s2); width: 22vmax; height: 22vmax; right: -3vmax; top: 30vh; }
+html[data-layout='island'] .isl-bg i:nth-child(3) { --c: var(--s3); width: 15vmax; height: 15vmax; left: 38vw; bottom: -4vmax; }
+/* орбиты и светящиеся точки (под карточками, только светлые варианты) */
+.isl-orb { display: none; }
+html[data-layout='island']:not([data-scene='nova']) .isl-orb { display: block; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.isl-orb .orb { position: absolute; left: 56%; top: 52%; width: calc(var(--rx) * 2); height: calc(var(--ry) * 2); margin: calc(var(--ry) * -1) 0 0 calc(var(--rx) * -1); transform: rotate(-14deg); animation: islorb var(--t) linear infinite; will-change: transform; }
+.isl-orb .o1 { --rx: 30vmax; --ry: 10vmax; --t: 140s; --dt: 9s; }
+.isl-orb .o2 { --rx: 46vmax; --ry: 16vmax; --t: 200s; --dt: 14s; animation-direction: reverse; }
+.isl-orb .o3 { --rx: 64vmax; --ry: 22vmax; --t: 260s; --dt: 19s; }
+@keyframes islorb { from { transform: rotate(-14deg); } to { transform: rotate(346deg); } }
+.isl-orb svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.isl-orb ellipse { fill: none; stroke: color-mix(in srgb, var(--s1) 55%, #fff); stroke-width: 1.2; opacity: .55; }
+.isl-orb .o2 ellipse { stroke: color-mix(in srgb, var(--s2) 60%, #fff); stroke-width: 1.5; opacity: .5; }
+.isl-orb .o3 ellipse { stroke: color-mix(in srgb, var(--s3) 55%, #fff); opacity: .4; }
+/* точка бежит по эллипсу: горизонталь и вертикаль качаются со сдвигом на четверть периода */
+.isl-orb .ox { position: absolute; left: 50%; top: 50%; width: 0; height: 0; animation: islox var(--dt) ease-in-out infinite alternate; }
+.isl-orb .oy { position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px color-mix(in srgb, var(--s1) 50%, transparent), 0 0 14px 4px color-mix(in srgb, var(--s1) 70%, #fff);
+  animation: isloy var(--dt) ease-in-out infinite alternate; animation-delay: calc(var(--dt) / -2); }
+.isl-orb .o2 .oy { box-shadow: 0 0 0 2px color-mix(in srgb, var(--s2) 50%, transparent), 0 0 14px 4px color-mix(in srgb, var(--s2) 70%, #fff); }
+.isl-orb .o3 .oy { width: 6px; height: 6px; left: -3px; top: -3px; box-shadow: 0 0 12px 3px color-mix(in srgb, var(--s3) 70%, #fff); }
+@keyframes islox { from { transform: translateX(calc(var(--rx) * -1)); } to { transform: translateX(var(--rx)); } }
+@keyframes isloy { from { transform: translateY(calc(var(--ry) * -1)); } to { transform: translateY(var(--ry)); } }
+@media (prefers-reduced-motion: reduce) { .isl-orb .orb, .isl-orb .ox, .isl-orb .oy { animation: none; } }
+/* карточки поверх яркого фона: плотные, с тонкой белой рамкой и лёгкой тенью */
+html[data-layout='island']:not([data-scene='nova']) .ic { background-color: rgba(255,255,255,.92); border: 1px solid rgba(255,255,255,.95); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(148,163,184,.22), 0 1px 2px rgba(15,23,42,.05), 0 8px 18px -12px rgba(15,23,42,.22); }
+html[data-layout='island']:not([data-scene='nova']) .ic:hover { background-color: #fff; box-shadow: 0 0 0 1px rgba(148,163,184,.3), 0 12px 26px -12px rgba(15,23,42,.28); }
+html[data-layout='island']:not([data-scene='nova']) .ic.sel { box-shadow: 0 0 0 2px var(--a), 0 0 0 6px color-mix(in srgb, var(--a) 16%, transparent), 0 12px 26px -12px color-mix(in srgb, var(--a) 45%, transparent); }
+html[data-layout='island']:not([data-scene='nova']) :is(.ig, .isl-insp, .isl-gnav) { background: rgba(255,255,255,.62); }
+.isl-orb ellipse { opacity: .45; } .isl-orb .o2 ellipse { opacity: .38; } .isl-orb .o3 ellipse { opacity: .28; }

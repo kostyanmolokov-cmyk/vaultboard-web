@@ -3,6 +3,7 @@
 
 const TONES = { violet: [0.62, 0.45, 1.0], emerald: [0.2, 0.9, 0.62], amber: [1.0, 0.68, 0.22], cyan: [0.25, 0.82, 1.0],
   // цвета пространств макета «Остров» (режимы «Тест 1» и «Тест 2»)
+  indigo: [0.39, 0.40, 0.95], sapphire: [0.14, 0.40, 0.98], teal: [0.04, 0.76, 0.62], coral: [1.0, 0.45, 0.2], fuchsia: [0.84, 0.24, 0.95], sky: [0.05, 0.62, 0.92],
   i0: [0.39, 0.40, 0.95], i1: [0.05, 0.65, 0.91], i2: [0.06, 0.73, 0.51], i3: [0.96, 0.62, 0.04], i4: [0.93, 0.28, 0.60], i5: [0.55, 0.36, 0.96] };
 // режим: 'nova' (как было), 'soft' (Тест 1: светлый фон, мягкие звуки, без вспышек и расшифровки), 'full' (Тест 2: светлый фон, все эффекты)
 let mode = 'nova';
@@ -77,13 +78,19 @@ void main(){
     if(id>0.){
       vec3 pos=ro+rd*t,n=normal(pos),v=-rd;
       float fr=pow(1.-max(dot(n,v),0.),2.);
+      // глянцевый шар: насыщенное тело, тёмный рефлекс по краю, белый блик сверху слева, отражённый свет снизу
+      float ndv=max(dot(n,v),0.);
       vec3 ir=.5+.5*cos(6.2831*(fr*.8+dot(n,vec3(.3,.5,.2))*.3+id*.07+uTime*.02+vec3(0.,.33,.67)));
-      vec3 l=normalize(vec3(.5,.8,.6));
-      float dif=max(dot(n,l),0.),sp=pow(max(dot(reflect(-l,n),v),0.),30.);
-      vec3 base=mix(vec3(1.),uAcc,.32);
-      lc=base*(.78+.22*dif)+mix(ir,vec3(1.),.45)*fr*.35-uAcc*fr*.12+sp*.45;
-      lc=mix(lc,lb,smoothstep(5.,13.,t)*.85);
-    }else{float px=2.6/uRes.y;lc=mix(lc,uAcc*.6+.4,(1.-smoothstep(0.,px*7.,edge))*.12);}
+      vec3 l=normalize(vec3(-.5,.8,.55));
+      float dif=max(dot(n,l),0.),rl=max(dot(reflect(-l,n),v),0.),sp=pow(rl,70.),sp2=pow(rl,9.);
+      vec3 body=mix(uAcc,uAcc*uAcc,.3),deep=uAcc*.32+vec3(.02,.02,.06);
+      vec3 c=mix(deep,body,smoothstep(-.25,.85,dif));
+      c=mix(c,deep*.8,pow(1.-ndv,2.2)*.6);
+      c+=mix(vec3(1.),uAcc,.25)*pow(1.-ndv,3.5)*.45*clamp(n.y+.4,0.,1.);
+      c+=uAcc*clamp(-n.y,0.,1.)*.22+ir*fr*.1;
+      c+=vec3(1.)*(sp*1.15+sp2*.16);
+      lc=mix(c,lb,smoothstep(9.,17.,t)*.55);
+    }else{float px=2.6/uRes.y;lc=mix(lc,lc*.82+uAcc*.12,(1.-smoothstep(0.,px*16.,edge))*.5);lc=mix(lc,uAcc*.55+.35,(1.-smoothstep(0.,px*1.4,edge))*.35);}
     float lr=length(uv)-uShock*2.3;lc+=uAcc*exp(-lr*lr*150.)*(1.-uShock)*.18;
     lc+=uAcc*(exp(-dot(a,a)*34.)*.06+exp(-dot(b,b)*13.)*.035);
     lc*=1.-.05*dot(uv,uv);
@@ -120,7 +127,7 @@ function build() {
 function resize() {
   if (!canvas) return;
   // рисуем в уменьшенном разрешении: фон всё равно размыт стеклом, а видеокарте в разы легче
-  const w = innerWidth, hgt = innerHeight, k = Math.min(0.75, Math.sqrt(640000 / Math.max(1, w * hgt)));
+  const w = innerWidth, hgt = innerHeight, k = light() ? Math.min(1, Math.sqrt(1500000 / Math.max(1, w * hgt))) : Math.min(0.75, Math.sqrt(640000 / Math.max(1, w * hgt)));
   canvas.width = Math.max(2, Math.round(w * k)); canvas.height = Math.max(2, Math.round(hgt * k));
   if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
 }
@@ -249,7 +256,7 @@ function wire() {
 // ───────────────────────── управление из приложения ─────────────────────────
 export function setActive(on, opts = {}) {
   if ('sound' in opts) sfx = !!opts.sound;
-  if (opts.mode) { mode = opts.mode; if (canvas && on && active) { target = TONES[document.documentElement.dataset.nv] || TONES.violet; loop(); } }
+  if (opts.mode) { const was = mode; mode = opts.mode; if (was !== mode) resize(); if (canvas && on && active) { target = TONES[document.documentElement.dataset.nv] || TONES.violet; loop(); } }
   if (on === active) return;
   active = on;
   if (on) {
