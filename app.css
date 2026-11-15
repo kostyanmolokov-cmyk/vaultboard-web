@@ -1923,3 +1923,35 @@ html[data-layout='island'] .isl-bg i:nth-child(3) { width: 130px; height: 130px;
 /* «Тесты 1–2»: 3D-фон тоже чёткий, без расфокуса */
 html:is([data-scene='test1'], [data-scene='test2']) .nv-bg { opacity: .9; filter: none; transform: none; }
 @media (prefers-reduced-motion: reduce) { html[data-layout='island'] .isl-bg i { animation: none; } }
+
+/* ═══════════ Тест 3D-фонов (scenes.js) ═══════════ */
+.bgt-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; display: block; transition: opacity .25s, filter .25s; }
+.bgt-canvas[hidden] { display: none; }
+/* пока включена тестовая сцена, свои фоны темы прячем, интерфейс поднимаем над сценой */
+html[data-bgtest] :is(.scene, .blobs, .orbs, .grain, .isl-bg, .isl-orb, .nv-bg) { display: none !important; }
+html[data-bgtest] body { background: #f3f4f7; }
+html[data-bgtest][data-theme='dark'] body { background: #0b0d16; }
+html[data-bgtest] :is(.shell, #island) { position: relative; z-index: 1; }
+/* карточки плотные, чтобы текст читался на любом фоне */
+html[data-bgtest][data-theme='light'] :is(.item, .ic) { background-color: rgba(255,255,255,.9) !important; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+html[data-bgtest][data-theme='dark'] :is(.item, .ic) { background-color: rgba(15,23,42,.88) !important; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+html[data-bgtest][data-theme='light'] :is(.group, .ig) { background-color: rgba(255,255,255,.55); }
+html[data-bgtest][data-theme='dark'] :is(.group, .ig) { background-color: rgba(10,14,24,.55); }
+/* пульт */
+.bgt-panel { position: fixed; right: 16px; bottom: 16px; z-index: 99999; width: 300px; padding: 12px 14px 10px; border-radius: 18px; font: 500 13px/1.3 var(--font, system-ui);
+  background: rgba(255,255,255,.92); color: #0f172a; border: 1px solid rgba(255,255,255,.95); box-shadow: 0 0 0 1px rgba(15,23,42,.08), 0 20px 50px -14px rgba(15,23,42,.4);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.bgt-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.bgt-head b { font-size: 13.5px; font-weight: 600; }
+.bgt-head span { flex: 1; min-width: 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bgt-x { width: 26px; height: 26px; border: 0; border-radius: 50%; background: rgba(15,23,42,.06); color: #334155; font-size: 17px; line-height: 1; cursor: pointer; }
+.bgt-x:hover { background: rgba(15,23,42,.12); }
+.bgt-btns { display: grid; grid-template-columns: repeat(6, 1fr) 1.6fr; gap: 5px; margin-bottom: 10px; }
+.bgt-btns button { height: 32px; border-radius: 10px; border: 1px solid rgba(148,163,184,.4); background: #fff; color: #0f172a; font: 600 13px var(--font, system-ui); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
+.bgt-btns button:hover { border-color: #6366f1; color: #4f46e5; }
+.bgt-btns button.on { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.bgt-btns button.off.on { background: #334155; border-color: #334155; }
+.bgt-r { display: grid; grid-template-columns: 70px 1fr 42px; align-items: center; gap: 8px; margin: 4px 0; font-size: 12.5px; color: #334155; }
+.bgt-r input { width: 100%; accent-color: #4f46e5; }
+.bgt-r output { text-align: right; font-variant-numeric: tabular-nums; color: #64748b; }
+@media (max-width: 600px) { .bgt-panel { left: 10px; right: 10px; width: auto; bottom: 10px; } }

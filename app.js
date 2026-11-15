@@ -1,17 +1,18 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794729315';
-import * as fb from './lib/firebase.js?v=1794729315';
-import * as st from './lib/store.js?v=1794729315';
-import * as sync from './lib/sync.js?v=1794729315';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794729315';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794729315';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794729315';
-import { cleanTitle } from './lib/text.js?v=1794729315';
-import { createIsland, spaceTone } from './island.js?v=1794729315';
-import { crystal3d, currentItem } from './fx.js?v=1794729315';
-import { openCloud } from './cloud.js?v=1794729315';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794729315';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794729315';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794730247';
+import * as fb from './lib/firebase.js?v=1794730247';
+import * as st from './lib/store.js?v=1794730247';
+import * as sync from './lib/sync.js?v=1794730247';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794730247';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794730247';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794730247';
+import { cleanTitle } from './lib/text.js?v=1794730247';
+import { createIsland, spaceTone } from './island.js?v=1794730247';
+import { crystal3d, currentItem } from './fx.js?v=1794730247';
+import { openCloud } from './cloud.js?v=1794730247';
+import { openBgTest, initBgTest } from './scenes.js?v=1794730247';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794730247';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794730247';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -20,7 +21,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.11.5' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.12.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -79,7 +80,7 @@ function novaTone() {
 async function syncNova() {
   const sc = S.prefs?.scene, on = sc === 'nova' || sc === 'test1' || sc === 'test2' || sc === 'test3';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794729315'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794730247'); } catch (e) { console.error(e); return; }
   nova.setActive(on, { sound: S.prefs?.sfx !== false, mode: sc === 'test1' ? 'soft' : sc === 'test2' ? 'full' : sc === 'test3' ? 'dark' : 'nova' });
   applyPalette(); if (islandOn() && S.data) isl.render();
   renderSfxBtn();
@@ -274,6 +275,7 @@ function renderApp() {
       h('main', { id: 'board', class: 'board' }))), h('div', { id: 'island', class: 'isl' }));
   isl.mount($('#island'));
   renderAll();
+  initBgTest();
   renderSfxBtn();
 }
 
@@ -734,6 +736,7 @@ function mainMenu(anchor) {
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
     { label: 'Найти значки сайтов заново', icon: 'sync', onClick: refreshIcons },
     { label: 'Где что лежит', icon: 'folder', onClick: openMap },
+    { label: 'Тест 3D-фонов (6 вариантов)', icon: 'sliders', onClick: openBgTest },
     IS_WEB ? { label: `Скачать расширение для Chrome (v${EXT_VERSION})`, icon: 'download', onClick: openExtDownload } : null,
     '-',
     { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
