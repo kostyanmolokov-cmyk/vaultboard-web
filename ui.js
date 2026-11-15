@@ -279,3 +279,45 @@ const ORB = `<defs>
 <g clip-path="url(#ob-front)"><ellipse cx="100" cy="104" rx="88" ry="24" transform="rotate(-16 100 104)" fill="none" stroke="url(#ob-r)" stroke-width="8"/></g>
 <g transform="translate(100 100)"><circle cx="0" cy="-5" r="10" fill="url(#ob-k)"/><path d="M-4.5 2h9l3 19h-15z" fill="url(#ob-k)"/>
 <circle cx="-3" cy="-8" r="3" fill="#fff" opacity=".25"/><path d="M-9 -12a10 10 0 0 1 12-4" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/></g>`;
+
+// ───── строка групп: подсветка группы, которая сейчас на экране, и прокрутка колёсиком по горизонтали ─────
+let spyB = null, spyRaf = 0, spyLock = null;
+// после клика по группе подсветка держится на ней, пока человек сам не прокрутит страницу
+for (const ev of ['wheel', 'touchstart', 'keydown']) addEventListener(ev, () => { spyLock = null; }, { passive: true, capture: true });
+export function spyFocus(gid) { spyLock = gid; spyUpdate(); }
+/** chips: контейнер с кнопками [data-gid]; sel: селектор групп на странице; line(): линия (px от верха окна), под которой «текущая» группа. */
+export function setGroupSpy(chips, sel, line) { spyB = chips ? { chips, sel, line } : null; spyUpdate(); }
+function spyUpdate() {
+  spyRaf = 0;
+  if (!spyB || !spyB.chips.isConnected) return;
+  const L = spyB.line(); let best = spyLock, bd = Infinity;
+  if (!best) for (const g of document.querySelectorAll(spyB.sel)) {
+    const r = g.getBoundingClientRect();
+    if (!r.height || r.bottom < L + 24) continue;
+    const d = Math.abs(r.top - L) + (r.left > innerWidth * 0.6 ? 40 : 0);
+    if (d < bd) { bd = d; best = g.dataset.id; }
+  }
+  const box = spyB.chips;
+  for (const c of box.querySelectorAll('[data-gid]')) {
+    const on = c.dataset.gid === best;
+    if (on === c.classList.contains('on')) continue;
+    c.classList.toggle('on', on); c.setAttribute('aria-current', on ? 'true' : 'false');
+    if (on && box.scrollWidth > box.clientWidth + 2) box.scrollTo({ left: c.offsetLeft - box.clientWidth / 2 + c.offsetWidth / 2, behavior: 'smooth' });
+  }
+}
+document.addEventListener('scroll', () => { if (!spyRaf) spyRaf = requestAnimationFrame(spyUpdate); }, { passive: true, capture: true });
+addEventListener('resize', () => { if (!spyRaf) spyRaf = requestAnimationFrame(spyUpdate); });
+/** Колёсико мыши над строкой групп листает её вбок, а не страницу (если строка не помещается). */
+export function wheelToX(el) {
+  el.addEventListener('wheel', (e) => {
+    if (el.scrollWidth <= el.clientWidth + 2 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault(); el.scrollLeft += e.deltaY;
+  }, { passive: false });
+  return el;
+}
+/** Плавная прокрутка окна к элементу с учётом закреплённых сверху панелей (offset px). */
+export function scrollToEl(el, offset) {
+  const b = document.body, sc = b.scrollHeight > b.clientHeight + 2 && /auto|scroll|hidden/.test(getComputedStyle(b).overflowY) ? b : document.scrollingElement;
+  const y = el.getBoundingClientRect().top + sc.scrollTop - offset;
+  sc.scrollTo({ top: Math.max(0, y), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+}

@@ -1692,3 +1692,45 @@ html[data-scene='nova'][data-layout='island'] .pal .pal-in, html[data-scene='nov
 /* сенсорные экраны: карточки не уже 250px (на телефоне в одну колонку), чтобы влезали название, логин и кнопки */
 @media (hover: none), (max-width: 600px) { html[data-look] .glist { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; } }
 @media (max-width: 600px) { html[data-look] .glist { grid-template-columns: minmax(0, 1fr); } }
+
+/* ═══════════ Закреплённая строка групп (все темы) ═══════════ */
+.gnav { position: sticky; top: var(--gnav-top, 70px); z-index: 19; margin: 0 8px 14px; padding: 6px; border-radius: 20px; border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg, #10121c) 74%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); box-shadow: 0 10px 30px -18px rgba(0,0,0,.6); }
+html[data-look='glass'] .gnav { background: rgba(16,18,40,.55); border-color: rgba(255,255,255,.14); }
+html[data-look='night'] .gnav { background: rgba(11,13,20,.78); border-color: rgba(255,255,255,.08); }
+html[data-scene='nova'] .gnav { background: rgba(10,14,24,.7); border-color: rgba(255,255,255,.08); }
+html[data-look='pearl'] .gnav { background: rgba(255,255,255,.66); border-color: rgba(255,255,255,.9); box-shadow: 0 10px 30px -18px rgba(60,50,120,.35); }
+.gchip { cursor: pointer; }
+.gchip.on { color: var(--ink); background: color-mix(in srgb, var(--c) 22%, transparent); border-color: color-mix(in srgb, var(--c) 65%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent), 0 0 16px -4px color-mix(in srgb, var(--c) 60%, transparent); }
+html[data-look='pearl'] .gchip.on { color: #14122e; background: color-mix(in srgb, var(--c) 18%, #fff); }
+/* на компьютере все группы видны сразу (переносятся на вторую строку), листать не нужно */
+@media (min-width: 901px) {
+  .gchips { flex-wrap: wrap; overflow-x: visible; overflow-y: auto; max-height: 72px; mask-image: none; -webkit-mask-image: none; scrollbar-width: thin; }
+  .gnav { align-items: flex-start; }
+}
+.group { scroll-margin-top: 0; }
+
+/* «Остров» и «Тесты»: та же строка над группами в левой колонке */
+.isl-gnav { position: sticky; top: 12px; z-index: 30; padding: 6px; border-radius: 20px; background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.95);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4); backdrop-filter: blur(22px) saturate(1.4); box-shadow: 0 10px 30px -16px rgba(15,23,42,.25); }
+.isl-gchips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 72px; overflow-y: auto; scrollbar-width: thin; }
+.isl-gchip { flex: none; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(226,232,240,.9); background: rgba(255,255,255,.75); font: 500 12px/1 var(--font); color: #475569; cursor: pointer; white-space: nowrap; transition: background .16s, border-color .16s, color .16s, box-shadow .16s; }
+.isl-gchip i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+.isl-gchip span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.isl-gchip b { font-size: 11px; font-weight: 600; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.isl-gchip:hover { background: #fff; color: #0f172a; }
+.isl-gchip.on { background: #fff; color: #0f172a; border-color: color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent); }
+.isl-gchip.on b { color: var(--c); }
+.ig.flash { animation: igflash 1.3s ease-out; }
+@keyframes igflash { 0%, 35% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 80%, #fff), 0 0 30px color-mix(in srgb, var(--c) 50%, transparent); } }
+html[data-scene='nova'][data-layout='island'] .isl-gnav { background: rgba(10,14,24,.78); border-color: rgba(255,255,255,.08); box-shadow: 0 14px 40px -18px rgba(0,0,0,.8); }
+html[data-scene='nova'][data-layout='island'] .isl-gchip { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.09); color: #B9C0D2; }
+html[data-scene='nova'][data-layout='island'] .isl-gchip:hover { background: rgb(var(--nv) / .1); color: #fff; }
+html[data-scene='nova'][data-layout='island'] .isl-gchip.on { background: color-mix(in srgb, var(--c) 20%, transparent); color: #fff; border-color: color-mix(in srgb, var(--c) 60%, transparent); box-shadow: 0 0 16px -4px var(--c); }
+html[data-scene='nova'][data-layout='island'] .isl-gchip b { font-family: var(--mono); color: #7F879B; }
+@media (max-width: 640px) {
+  .isl-gchips, .gchips { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; max-height: none; scrollbar-width: none; }
+  .isl-gnav { top: 8px; }
+}
+/* горизонтальная прокрутка запрещена без превращения body в отдельную прокручиваемую область (иначе ломались закрепление и переходы на телефоне) */
+html, body { overflow-x: clip !important; }

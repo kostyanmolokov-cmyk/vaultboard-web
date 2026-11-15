@@ -1,16 +1,16 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794693053';
-import * as fb from './lib/firebase.js?v=1794693053';
-import * as st from './lib/store.js?v=1794693053';
-import * as sync from './lib/sync.js?v=1794693053';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794693053';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794693053';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794693053';
-import { cleanTitle } from './lib/text.js?v=1794693053';
-import { createIsland } from './island.js?v=1794693053';
-import { crystal3d, currentItem } from './fx.js?v=1794693053';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794693053';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown } from './ui.js?v=1794693053';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794726047';
+import * as fb from './lib/firebase.js?v=1794726047';
+import * as st from './lib/store.js?v=1794726047';
+import * as sync from './lib/sync.js?v=1794726047';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794726047';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794726047';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794726047';
+import { cleanTitle } from './lib/text.js?v=1794726047';
+import { createIsland } from './island.js?v=1794726047';
+import { crystal3d, currentItem } from './fx.js?v=1794726047';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794726047';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726047';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -19,7 +19,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.10.3' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.10.4' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -78,7 +78,7 @@ function novaTone() {
 async function syncNova() {
   const sc = S.prefs?.scene, on = sc === 'nova' || sc === 'test1' || sc === 'test2' || sc === 'test3';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794693053'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794726047'); } catch (e) { console.error(e); return; }
   nova.setActive(on, { sound: S.prefs?.sfx !== false, mode: sc === 'test1' ? 'soft' : sc === 'test2' ? 'full' : sc === 'test3' ? 'dark' : 'nova' });
   applyPalette(); if (islandOn() && S.data) isl.render();
   renderSfxBtn();
@@ -447,17 +447,27 @@ function renderBoard() {
 }
 
 // Полоса быстрой навигации: чипсы групп и «Свернуть/Развернуть все» (когда групп 5 и больше)
+// Закреплённая строка групп: клик — прокрутка к группе, подсвечена та, что сейчас на экране
 function renderGroupNav(groups, counts, filtering) {
   const nav = $('#gnav'); if (!nav) return;
   nav.replaceChildren();
-  const on = !filtering && groups.length >= 5;
-  nav.hidden = !on; if (!on) return;
+  const on = !filtering && groups.length >= 2;
+  nav.hidden = !on; if (!on) { setGroupSpy(null); return; }
   const allCollapsed = groups.every((g) => S.ui.collapsed?.[g.id]);
-  const chips = h('div', { class: 'gchips' }, groups.map((g) => h('button', { class: 'gchip', style: { '--c': g.color || GROUP_COLORS[0] }, title: 'Перейти к группе «' + cleanTitle(g.name) + '»', onclick: () => jumpToGroup(g) },
-    h('i', { 'aria-hidden': 'true' }), h('span', {}, cleanTitle(g.name)), h('b', {}, String(counts.get(g.id) ?? 0)))));
+  const chips = wheelToX(h('div', { class: 'gchips', role: 'navigation', 'aria-label': 'Перейти к группе' }, groups.map((g) => h('button', { class: 'gchip', dataset: { gid: g.id }, style: { '--c': g.color || GROUP_COLORS[0] }, title: 'Перейти к группе «' + cleanTitle(g.name) + '»', onclick: () => jumpToGroup(g) },
+    h('i', { 'aria-hidden': 'true' }), h('span', {}, cleanTitle(g.name)), h('b', {}, String(counts.get(g.id) ?? 0))))));
   nav.append(chips, h('button', { class: 'gnav-all', title: allCollapsed ? 'Развернуть все группы' : 'Свернуть все группы', onclick: () => setAllCollapsed(groups, !allCollapsed) },
     icon('chevron', 14), allCollapsed ? 'Развернуть все' : 'Свернуть все'));
+  placeGroupNav();
+  setGroupSpy(chips, '#board .group', () => nav.getBoundingClientRect().bottom + 10);
 }
+// строка групп прилипает сразу под шапкой с поиском; высоту шапки меряем, т.к. она разная в темах
+function placeGroupNav() {
+  const top = document.querySelector('.main > .top'), nav = $('#gnav'); if (!top || !nav) return;
+  const cs = getComputedStyle(top), t = (cs.position === 'sticky' ? parseFloat(cs.top) || 0 : 0) + top.offsetHeight + 6;
+  document.documentElement.style.setProperty('--gnav-top', t + 'px');
+}
+addEventListener('resize', () => placeGroupNav());
 function setAllCollapsed(groups, v) {
   const c = { ...(S.ui.collapsed || {}) };
   for (const g of groups) c[g.id] = v;
@@ -467,7 +477,9 @@ function setAllCollapsed(groups, v) {
 function jumpToGroup(g) {
   if (S.ui.collapsed?.[g.id]) { S.ui.collapsed = { ...S.ui.collapsed, [g.id]: false }; st.setUi({ collapsed: S.ui.collapsed }); renderBoard(); }
   const el = document.querySelector(`.group[data-id="${CSS.escape(g.id)}"]`); if (!el) return;
-  el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  const nav = $('#gnav'), stick = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--gnav-top')) || 70) + (nav?.offsetHeight || 0) + 12;
+  scrollToEl(el, stick);
+  spyFocus(g.id);
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400);
 }
 

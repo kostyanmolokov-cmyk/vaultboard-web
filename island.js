@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown } from './ui.js?v=1794693053';
+import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726047';
 
 // цвета по пространствам: акцент и три пастельных шара на фоне
 const PAL = [
@@ -179,14 +179,18 @@ export function createIsland(c) {
     const sub = h('div', { class: 'isl-sub' }, seg, h('div', { class: 'isl-sub-r' }, gdd,
       groups.length ? h('button', { class: 'isl-btn sm', title: allCollapsed ? 'Развернуть все группы' : 'Свернуть все группы', onclick: () => c.setCollapsed(groups, !allCollapsed) }, icon('chevron', 14), allCollapsed ? 'Развернуть все' : 'Свернуть все') : null));
 
-    const blocks = [];
+    const blocks = [], shownGroups = [];
     for (const g of groups) {
       if (groupFilter && g.id !== groupFilter) continue;
       const list = spaceItems.filter((i) => i.groupId === g.id && (S.type === 'all' || (S.type === 'fav' ? i.favorite : i.type === S.type))).sort((a, b) => a.order - b.order);
       if (S.type !== 'all' && !list.length) continue;
-      blocks.push(groupBlock(g, list));
+      blocks.push(groupBlock(g, list)); shownGroups.push([g, list.length]);
     }
-    const list = h('div', { class: 'isl-list' + (animateList ? ' enter' : '') }, blocks.length ? blocks : h('div', { class: 'isl-none' }, groups.length ? 'Нет записей с такими фильтрами' : 'В этом пространстве пока нет групп'),
+    // закреплённая строка групп: клик — прокрутка к группе, подсвечена та, что на экране
+    const chips = shownGroups.length >= 2 ? wheelToX(h('div', { class: 'isl-gchips', role: 'navigation', 'aria-label': 'Перейти к группе' }, shownGroups.map(([g, n]) =>
+      h('button', { class: 'isl-gchip', dataset: { gid: g.id }, style: { '--c': g.color || '#6366f1' }, title: 'Перейти к группе «' + c.cleanTitle(g.name) + '»', onclick: () => jump(g) },
+        h('i'), h('span', {}, c.cleanTitle(g.name)), h('b', {}, String(n)))))) : null;
+    const list = h('div', { class: 'isl-list' + (animateList ? ' enter' : '') }, chips ? h('div', { class: 'isl-gnav' }, chips) : null, blocks.length ? blocks : h('div', { class: 'isl-none' }, groups.length ? 'Нет записей с такими фильтрами' : 'В этом пространстве пока нет групп'),
       h('button', { class: 'ig-add', onclick: () => c.groupDialog() }, icon('plus', 15), 'Новая группа'));
     animateList = false;
     const insp = h('aside', { class: 'isl-insp' + (shownSel !== sel ? ' enter' : ''), 'aria-label': 'Запись' }, inspector(spaceItems));
@@ -195,6 +199,17 @@ export function createIsland(c) {
     ui.replaceChildren(topBar(spaces), sub, h('div', { class: 'isl-work' + (sel ? ' has-sel' : ''), onclick: (e) => { if (e.target === e.currentTarget && sel && matchMedia('(max-width: 980px)').matches) { sel = null; render(); } } }, list, insp));
     scrollTo(0, y);
     placePill();
+    if (chips) setGroupSpy(chips, '#island .ig', () => chips.getBoundingClientRect().bottom + 10); else setGroupSpy(null);
+  }
+
+  function jump(g) {
+    const go = () => {
+      const el = ui.querySelector(`.ig[data-id="${CSS.escape(g.id)}"]`), nav = ui.querySelector('.isl-gnav'); if (!el) return;
+      scrollToEl(el, (nav ? nav.offsetHeight : 0) + 24);
+      spyFocus(g.id);
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400);
+    };
+    if (S.ui.collapsed?.[g.id]) { c.setCollapsed([g], false); requestAnimationFrame(() => requestAnimationFrame(go)); } else go();
   }
 
   // ───── командный поиск ─────
