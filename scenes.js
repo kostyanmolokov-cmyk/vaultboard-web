@@ -4,13 +4,14 @@ const KEY = 'vb.bgtest';
 const load = () => { try { return { scene: 0, op: 100, blur: 0, open: false, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { scene: 0, op: 100, blur: 0, open: false }; } };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* ок */ } };
 const st = load();
+const isLight = () => document.documentElement.dataset.theme === 'light';
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const NAMES = ['', 'Стеклянный веер', 'Органический узел', 'Янтарная спираль', 'Жидкий хром', 'Стеклянные кубики', 'Неоновый цветок'];
 
 // ───────────────────────── общие куски шейдеров ─────────────────────────
 const HEAD = `precision highp float;
-uniform vec2 uRes;uniform float uT;uniform vec2 uM;
+uniform vec2 uRes;uniform float uT;uniform vec2 uM;uniform float uL;
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float hash3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
@@ -141,12 +142,16 @@ vec2 map(vec3 p){
   return vec2(best*s*.8,1.);
 }
 vec3 bgCol(vec2 uv){vec3 c=mix(vec3(.05,.045,.11),vec3(.11,.08,.2),smoothstep(-.7,.6,uv.y+uv.x*.2));
+  vec3 cl=mix(vec3(.93,.92,.985),vec3(.985,.98,1.),smoothstep(-.7,.6,uv.y+uv.x*.2))+vec3(.55,.45,1.)*.06*exp(-dot(uv,uv)*2.5);
+  c=mix(c,cl,uL);
   vec2 g=uv*9.;vec2 id=floor(g+vec2(0.,uT*.25));float h=hash(id);vec2 f=fract(g+vec2(0.,uT*.25))-.5-vec2(h-.5,fract(h*7.)-.5)*.6;
-  float sp=step(.82,h)*smoothstep(.07,.0,length(f));c+=sp*mix(vec3(.55,.45,1.),vec3(.4,.95,1.),fract(h*13.))*.9;return c;}
+  float sp=step(.82,h)*smoothstep(.07,.0,length(f));vec3 sc=mix(vec3(.55,.45,1.),vec3(.4,.95,1.),fract(h*13.));
+  c=mix(c+sp*sc*.9,mix(c,sc*.85,sp*.85),uL);return c;}
 vec3 shade(vec3 p,vec3 n,vec3 rd,float id,vec3 bg){
   vec3 l=normalize(vec3(-.4,.7,.6));float dif=max(dot(n,l),0.),fr=pow(1.-abs(dot(n,rd)),2.5),sp=pow(max(dot(reflect(rd,n),l),0.),40.);
   vec3 c=mix(vec3(.30,.20,.85),vec3(.55,.35,1.),dif);c=mix(c,vec3(.35,.85,1.),fr*.7);c+=sp*vec3(.8,.85,1.);
-  c+=vec3(.45,.3,1.)*(.15+.1*sin(uT*1.4));
+  c+=vec3(.45,.3,1.)*(.15+.1*sin(uT*1.4))*(1.-uL*.6);
+  c=mix(c,c*.92+vec3(.05),uL);
   return c;
 }
 vec3 post(vec3 c,vec2 uv){return c;}` + TAIL(100, '.7');
@@ -177,7 +182,7 @@ function program(n) {
   if (!v || !f) return (progs[n] = null);
   const pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
   if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return (progs[n] = null);
-  U[n] = { res: gl.getUniformLocation(pr, 'uRes'), t: gl.getUniformLocation(pr, 'uT'), m: gl.getUniformLocation(pr, 'uM'), p: gl.getAttribLocation(pr, 'p') };
+  U[n] = { l: gl.getUniformLocation(pr, 'uL'), res: gl.getUniformLocation(pr, 'uRes'), t: gl.getUniformLocation(pr, 'uT'), m: gl.getUniformLocation(pr, 'uM'), p: gl.getAttribLocation(pr, 'p') };
   return (progs[n] = pr);
 }
 let k = 0.6;
@@ -203,7 +208,7 @@ function frame(now) {
     if (pr) {
       gl.useProgram(pr); const u = U[st.scene];
       gl.enableVertexAttribArray(u.p); gl.vertexAttribPointer(u.p, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform2f(u.res, glc.width, glc.height); gl.uniform1f(u.t, t); gl.uniform2f(u.m, mouse.x, mouse.y);
+      gl.uniform2f(u.res, glc.width, glc.height); gl.uniform1f(u.l, isLight() ? 1 : 0); gl.uniform1f(u.t, t); gl.uniform2f(u.m, mouse.x, mouse.y);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
   }
@@ -215,7 +220,9 @@ function loop() { if (!raf && st.scene && !document.hidden) raf = requestAnimati
 const RIB = [[168, 85, 247], [59, 130, 246], [239, 68, 68], [250, 204, 21], [34, 197, 94]];
 function drawCubes(t) {
   const W = c2.width, H = c2.height, g = ctx2;
-  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#0d0b1d'); bg.addColorStop(1, '#1b1433');
+  const L5 = isLight();
+  const bg = g.createLinearGradient(0, 0, W, H);
+  if (L5) { bg.addColorStop(0, '#f7f6fc'); bg.addColorStop(1, '#e9e7f5'); } else { bg.addColorStop(0, '#0d0b1d'); bg.addColorStop(1, '#1b1433'); }
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
   const cubes = [];
   const L = Math.hypot(W, H) * 1.25, sp = 0.032, flow = (t * 0.012) % sp;
@@ -238,6 +245,7 @@ function drawCubes(t) {
     if (c.x < -c.size * 2 || c.x > W + c.size * 2 || c.y < -c.size * 2 || c.y > H + c.size * 2) continue;
     const s = c.size, [r, gg, b] = c.col, d = s * 0.38;
     g.save(); g.translate(c.x, c.y); g.rotate(c.ang);
+    if (L5) { g.fillStyle = `rgba(${r},${gg},${b},.16)`; g.beginPath(); g.ellipse(s * 0.25, s * 0.75, s * 0.7, s * 0.22, 0, 0, 6.283); g.fill(); } // мягкая цветная тень на светлом
     // верхняя и боковая грани (объём), затем передняя полупрозрачная
     g.fillStyle = `rgba(${Math.min(255, r + 70)},${Math.min(255, gg + 70)},${Math.min(255, b + 70)},.55)`;
     g.beginPath(); g.moveTo(-s / 2, -s / 2); g.lineTo(-s / 2 + d, -s / 2 - d); g.lineTo(s / 2 + d, -s / 2 - d); g.lineTo(s / 2, -s / 2); g.closePath(); g.fill();
@@ -246,7 +254,7 @@ function drawCubes(t) {
     const fg = g.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
     fg.addColorStop(0, `rgba(${Math.min(255, r + 90)},${Math.min(255, gg + 90)},${Math.min(255, b + 90)},.75)`); fg.addColorStop(1, `rgba(${r},${gg},${b},.5)`);
     g.fillStyle = fg; g.fillRect(-s / 2, -s / 2, s, s);
-    g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = Math.max(1, s * 0.04); g.strokeRect(-s / 2, -s / 2, s, s);
+    g.strokeStyle = L5 ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.45)'; g.lineWidth = Math.max(1, s * 0.04); g.strokeRect(-s / 2, -s / 2, s, s);
     g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-s / 2 + s * 0.12, -s / 2 + s * 0.12, s * 0.22, s * 0.08);
     g.restore();
   }
@@ -254,7 +262,8 @@ function drawCubes(t) {
   for (let i = 0; i < 26; i++) {
     const hx = (Math.sin(i * 91.7) * 0.5 + 0.5), hy = ((Math.sin(i * 47.3) * 0.5 + 0.5) + t * 0.01 * (1 + i % 3)) % 1;
     const a = 0.4 + 0.4 * Math.sin(t * 2 + i);
-    g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(hx * W, (1 - hy) * H, 1.5 + (i % 3), 0, 6.283); g.fill();
+    const [sr, sg, sb] = RIB[i % RIB.length];
+    g.fillStyle = L5 ? `rgba(${sr},${sg},${sb},${a * 0.7})` : `rgba(255,255,255,${a})`; g.beginPath(); g.arc(hx * W, (1 - hy) * H, 1.5 + (i % 3), 0, 6.283); g.fill();
   }
 }
 
