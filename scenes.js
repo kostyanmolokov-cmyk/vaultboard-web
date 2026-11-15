@@ -181,7 +181,7 @@ function apply() {
   }
   paintPanel();
 }
-let panel = null;
+let panel = null, ctx = null;
 function paintPanel() {
   if (!st.open) { panel?.remove(); panel = null; return; }
   if (!panel) {
@@ -189,10 +189,15 @@ function paintPanel() {
     document.body.append(panel);
   }
   panel.innerHTML = `
-    <div class="bgt-head"><b>Тест 3D-фонов</b><span>${st.scene ? NAMES[st.scene] : 'выключено'}</span><button class="bgt-x" title="Закрыть пульт" aria-label="Закрыть пульт">×</button></div>
+    <div class="bgt-head"><b>3D-фоны</b><span></span><button class="bgt-x" title="Закрыть пульт" aria-label="Закрыть пульт">×</button></div>
+    ${ctx ? `<div class="bgt-cap">Тема</div><div class="bgt-themes" role="listbox" aria-label="Тема">${ctx.themes.map(([v, l]) => {
+      const [name, ...rest] = l.split(' ('); const hint = rest.join(' (').replace(/\)$/, '');
+      return `<button data-t="${v}" class="${ctx.current() === v ? 'on' : ''}" title="${l.replace(/"/g, '&quot;')}"><b>${name}</b>${hint ? `<span>${hint}</span>` : ''}</button>`; }).join('')}</div>` : ''}
+    <div class="bgt-cap">3D-сцена поверх темы<em>${st.scene ? NAMES[st.scene] : 'выключена'}</em></div>
     <div class="bgt-btns">${[5, 6].map((n) => `<button data-n="${n}" class="${st.scene === n ? 'on' : ''}" title="${NAMES[n]}">${n}</button>`).join('')}<button data-n="0" class="off ${!st.scene ? 'on' : ''}">Выкл</button></div>
     <label class="bgt-r"><span>Яркость</span><input type="range" min="10" max="100" step="1" value="${st.op}" data-k="op"><output>${st.op}%</output></label>
     <label class="bgt-r"><span>Размытие</span><input type="range" min="0" max="20" step="1" value="${st.blur}" data-k="blur"><output>${st.blur}px</output></label>`;
+  panel.querySelectorAll('.bgt-themes button').forEach((b) => { b.onclick = async () => { await ctx.setTheme(b.dataset.t); paintPanel(); }; });
   panel.querySelector('.bgt-x').onclick = () => { st.open = false; save(); paintPanel(); };
   panel.querySelectorAll('.bgt-btns button').forEach((b) => { b.onclick = () => { st.scene = +b.dataset.n; save(); apply(); }; });
   panel.querySelectorAll('input[type=range]').forEach((inp) => {
@@ -203,5 +208,5 @@ function paintPanel() {
     };
   });
 }
-export function openBgTest() { st.open = true; save(); apply(); }
-export function initBgTest() { if (st.scene || st.open) apply(); }
+export function openBgTest(c) { if (c) ctx = c; st.open = true; save(); apply(); }
+export function initBgTest(c) { if (c) ctx = c; if (st.scene || st.open) apply(); }

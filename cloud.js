@@ -1,6 +1,6 @@
 // Окно «Облако»: личные файлы на Google Диске, зашифрованные ключом хранилища.
-import { h, icon, modal, toast, confirmBox, popMenu } from './ui.js?v=1794731347';
-import * as drive from './lib/drive.js?v=1794731347';
+import { h, icon, modal, toast, confirmBox, popMenu } from './ui.js?v=1794731584';
+import * as drive from './lib/drive.js?v=1794731584';
 
 const KB = 1024, MB = KB * 1024, GB = MB * 1024;
 export const fmtSize = (n) => n >= GB ? (n / GB).toFixed(2) + ' ГБ' : n >= MB ? (n / MB).toFixed(n >= 100 * MB ? 0 : 1) + ' МБ' : n >= KB ? Math.round(n / KB) + ' КБ' : n + ' Б';

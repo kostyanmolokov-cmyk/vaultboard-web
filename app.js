@@ -1,18 +1,18 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794731347';
-import * as fb from './lib/firebase.js?v=1794731347';
-import * as st from './lib/store.js?v=1794731347';
-import * as sync from './lib/sync.js?v=1794731347';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794731347';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794731347';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794731347';
-import { cleanTitle } from './lib/text.js?v=1794731347';
-import { createIsland, spaceTone } from './island.js?v=1794731347';
-import { crystal3d, currentItem } from './fx.js?v=1794731347';
-import { openCloud } from './cloud.js?v=1794731347';
-import { openBgTest, initBgTest } from './scenes.js?v=1794731347';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794731347';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794731347';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794731584';
+import * as fb from './lib/firebase.js?v=1794731584';
+import * as st from './lib/store.js?v=1794731584';
+import * as sync from './lib/sync.js?v=1794731584';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794731584';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794731584';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794731584';
+import { cleanTitle } from './lib/text.js?v=1794731584';
+import { createIsland, spaceTone } from './island.js?v=1794731584';
+import { crystal3d, currentItem } from './fx.js?v=1794731584';
+import { openCloud } from './cloud.js?v=1794731584';
+import { openBgTest, initBgTest } from './scenes.js?v=1794731584';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794731584';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794731584';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -21,7 +21,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.12.3' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.12.4' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -80,7 +80,7 @@ function novaTone() {
 async function syncNova() {
   const sc = S.prefs?.scene, on = sc === 'nova' || sc === 'test1' || sc === 'test2' || sc === 'test3';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794731347'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794731584'); } catch (e) { console.error(e); return; }
   nova.setActive(on, { sound: S.prefs?.sfx !== false, mode: sc === 'test1' ? 'soft' : sc === 'test2' ? 'full' : sc === 'test3' ? 'dark' : 'nova' });
   applyPalette(); if (islandOn() && S.data) isl.render();
   renderSfxBtn();
@@ -275,7 +275,7 @@ function renderApp() {
       h('main', { id: 'board', class: 'board' }))), h('div', { id: 'island', class: 'isl' }));
   isl.mount($('#island'));
   renderAll();
-  initBgTest();
+  initBgTest(bgCtx);
   renderSfxBtn();
 }
 
@@ -736,7 +736,7 @@ function mainMenu(anchor) {
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
     { label: 'Найти значки сайтов заново', icon: 'sync', onClick: refreshIcons },
     { label: 'Где что лежит', icon: 'folder', onClick: openMap },
-    { label: 'Тест 3D-фонов (5 и 6)', icon: 'sliders', onClick: openBgTest },
+    { label: '3D-фоны', icon: 'sliders', onClick: openBackgrounds },
     IS_WEB ? { label: `Скачать расширение для Chrome (v${EXT_VERSION})`, icon: 'download', onClick: openExtDownload } : null,
     '-',
     { label: 'Заблокировать', icon: 'lock', onClick: lockNow },
@@ -1118,14 +1118,12 @@ function openSettings() {
   lockOn.addEventListener('change', syncLock); syncLock();
   const lockMinutes = () => Math.min(1440, Math.max(1, Math.round(Number(lockMin.value)) || 15));
   const clip = dropdown([[0, 'Не очищать'], [15, '15 секунд'], [30, '30 секунд'], [60, '1 минута']], S.prefs.clipClearSec);
-  const theme = dropdown([['night', 'Ночь (тёмная, стекло)'], ['nova', 'Нова (тёмная, 3D sci-fi, эффекты и звук)'], ['island', 'Остров (светлый, НОВЫЙ макет: парящая панель, инспектор, ⌘K)'], ['test1', 'Тест 1 (Остров + мягкие эффекты Новы: 3D-фон, звуки, наклон)'], ['test2', 'Тест 2 (Остров + все эффекты Новы один в один)'], ['test3', 'Тест 3 (дизайн и эффекты Новы целиком, карточки и меню как в Острове)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']], S.prefs.scene || 'night');
   const favOn = h('input', { type: 'checkbox', checked: S.prefs.favicons !== false });
   const autoOn = h('input', { type: 'checkbox', checked: S.prefs.autofill !== false });
   const sfxOn = h('input', { type: 'checkbox', checked: S.prefs.sfx !== false });
   const m = modal({ title: 'Настройки',
     body: [h('div', { class: 'field' }, h('label', { class: 'inline check' }, lockOn, 'Блокировать при бездействии'), lockRow),
       h('div', { class: 'field' }, h('span', {}, 'Очищать буфер после копирования пароля'), clip),
-      h('div', { class: 'field' }, h('span', {}, 'Фон'), theme),
       h('label', { class: 'inline check' }, sfxOn, 'Звуки интерфейса (в темах «Нова» и «Тест 1–3»)'),
       IS_WEB ? null : h('label', { class: 'inline check' }, autoOn, 'Автоматически подставлять логин и пароль на любых сайтах из хранилища'),
       h('label', { class: 'inline check' }, favOn, 'Показывать значки сайтов (адреса сайтов запрашиваются у Google, DuckDuckGo и самих сайтов)'),
@@ -1138,7 +1136,7 @@ function openSettings() {
         try { afOk = await chrome.permissions.request({ origins: ALL_SITES }); } catch { afOk = false; }
         if (!afOk) toast('Без доступа ко всем сайтам автозаполнение при открытии не заработает', 'warn');
       }
-      await st.setPrefs({ autofill: autoOn.checked, autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), scene: theme.value, favicons: favOn.checked, sfx: sfxOn.checked });
+      await st.setPrefs({ autofill: autoOn.checked, autolockMin: lockOn.checked ? lockMinutes() : 0, autolockLast: lockMinutes(), clipClearSec: Number(clip.value), favicons: favOn.checked, sfx: sfxOn.checked });
       S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); send({ cmd: 'touch' }); m.close(); toast('Настройки сохранены');
     } }, 'Сохранить')] });
 }
@@ -1260,6 +1258,11 @@ async function cloudKey() {
   })().finally(() => { cloudKeyP = null; });
   return cloudKeyP;
 }
+// ───── «3D-фоны»: темы и 3D-сцены выбираются в одном плавающем пульте (scenes.js) ─────
+const THEMES = [['night', 'Ночь (тёмная, стекло)'], ['nova', 'Нова (тёмная, 3D sci-fi, эффекты и звук)'], ['island', 'Остров (светлый, НОВЫЙ макет: парящая панель, инспектор, ⌘K)'], ['test1', 'Тест 1 (Остров + мягкие эффекты Новы: 3D-фон, звуки, наклон)'], ['test2', 'Тест 2 (Остров + все эффекты Новы один в один)'], ['test3', 'Тест 3 (дизайн и эффекты Новы целиком, карточки и меню как в Острове)'], ['pearl', 'Жемчуг (светлая, цвет по пространствам)'], ['peach', 'Персик (светлая, 3D)'], ['dusk', 'Закат (тёмная)'], ['city', 'Ночной город (тёмная)'], ['forest', 'Туманный лес (тёмная)'], ['plain', 'Тёмная без картинки']];
+const bgCtx = { themes: THEMES, current: () => S.prefs?.scene || 'night',
+  setTheme: async (v) => { await st.setPrefs({ scene: v }); S.prefs = await st.getPrefs(); applyTheme(); renderBoard(); } };
+function openBackgrounds() { openBgTest(bgCtx); }
 function openCloudNow() { if (!S.key) return; drivePrep(); openCloud({ cloudKey, sound: (k) => nova?.blip?.() }); }
 // веб: скрипты входа Google грузим заранее, чтобы окно Google открылось сразу по кнопке
 function drivePrep() { if (IS_WEB) fb.warmup?.(); }
