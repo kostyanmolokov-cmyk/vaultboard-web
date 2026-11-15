@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726047';
+import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726691';
 
 // цвета по пространствам: акцент и три пастельных шара на фоне
 const PAL = [
@@ -70,6 +70,7 @@ export function createIsland(c) {
       nav,
       h('div', { class: 'isl-right' },
         h('button', { class: 'isl-search', title: 'Поиск по всем записям (Ctrl+K)', 'aria-label': 'Поиск', onclick: openPalette }, icon('search', 15), h('span', {}, 'Поиск'), h('kbd', {}, /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? '⌘K' : 'Ctrl K')),
+        h('button', { class: 'isl-round', title: 'Облако: ваши файлы на Google Диске', 'aria-label': 'Облако', onclick: c.openCloud }, icon('folder', 16)),
         h('button', { class: 'isl-add', onclick: (e) => c.addMenu(e.currentTarget) }, icon('plus', 15), h('span', {}, 'Добавить')),
         c.fx?.() ? h('button', { class: 'isl-round', title: c.sfxOn() ? 'Выключить звуки' : 'Включить звуки', 'aria-label': 'Звуки интерфейса', 'aria-pressed': String(c.sfxOn()), onclick: c.toggleSfx }, icon(c.sfxOn() ? 'volume' : 'mute', 16)) : null,
         h('button', { class: 'isl-round', title: 'Меню: импорт, настройки', 'aria-label': 'Меню', onclick: (e) => c.mainMenu(e.currentTarget) }, icon('sliders', 16)),

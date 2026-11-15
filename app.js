@@ -1,16 +1,17 @@
 // Vaultboard — панель: пространства → группы → записи (логины, ссылки, заметки).
-import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794726047';
-import * as fb from './lib/firebase.js?v=1794726047';
-import * as st from './lib/store.js?v=1794726047';
-import * as sync from './lib/sync.js?v=1794726047';
-import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794726047';
-import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794726047';
-import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794726047';
-import { cleanTitle } from './lib/text.js?v=1794726047';
-import { createIsland } from './island.js?v=1794726047';
-import { crystal3d, currentItem } from './fx.js?v=1794726047';
-import { findIcon, resetIconCache } from './lib/icons.js?v=1794726047';
-import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726047';
+import { deriveKey, randomBytes, b64, DEFAULT_ITER, newRecoveryKey, wrapKey } from './lib/crypto.js?v=1794726691';
+import * as fb from './lib/firebase.js?v=1794726691';
+import * as st from './lib/store.js?v=1794726691';
+import * as sync from './lib/sync.js?v=1794726691';
+import { uid, emptyData, newItem, generatePassword, liveItems, liveGroups, liveSpaces, mergeData, GROUP_COLORS } from './lib/model.js?v=1794726691';
+import { normalizeUrl, hostOf, parseUrl, permissionPattern } from './lib/domain.js?v=1794726691';
+import { importCsv, importBookmarksHtml, toCsv } from './lib/importers.js?v=1794726691';
+import { cleanTitle } from './lib/text.js?v=1794726691';
+import { createIsland } from './island.js?v=1794726691';
+import { crystal3d, currentItem } from './fx.js?v=1794726691';
+import { openCloud } from './cloud.js?v=1794726691';
+import { findIcon, resetIconCache } from './lib/icons.js?v=1794726691';
+import { h, icon, toast, modal, confirmBox, popMenu, renderMarkdown, vaultArt, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus } from './ui.js?v=1794726691';
 
 const $ = (s, r = document) => r.querySelector(s);
 const root = document.getElementById('root');
@@ -19,7 +20,7 @@ const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => null);
 const ALL_SITES = ['http://*/*', 'https://*/*'];
 const IS_WEB = !globalThis.chrome?.runtime?.id; // веб-версия без расширения: нет автозаполнения и фонового процесса
 // версия расширения: в самом расширении берём из манифеста, на сайте подставляется при сборке
-const EXT_VERSION = IS_WEB ? '1.10.4' : chrome.runtime.getManifest().version;
+const EXT_VERSION = IS_WEB ? '1.11.0' : chrome.runtime.getManifest().version;
 const S = {
   env: null, key: null, data: null, prefs: null, ui: {}, sync: null,
   spaceId: null, q: '', type: 'all', tag: null, drag: null, reloadPending: false,
@@ -78,7 +79,7 @@ function novaTone() {
 async function syncNova() {
   const sc = S.prefs?.scene, on = sc === 'nova' || sc === 'test1' || sc === 'test2' || sc === 'test3';
   if (!on && !nova) return;
-  try { nova ||= await import('./nova.js?v=1794726047'); } catch (e) { console.error(e); return; }
+  try { nova ||= await import('./nova.js?v=1794726691'); } catch (e) { console.error(e); return; }
   nova.setActive(on, { sound: S.prefs?.sfx !== false, mode: sc === 'test1' ? 'soft' : sc === 'test2' ? 'full' : sc === 'test3' ? 'dark' : 'nova' });
   applyPalette(); if (islandOn() && S.data) isl.render();
   renderSfxBtn();
@@ -255,6 +256,7 @@ function renderApp() {
       h('div', { class: 'side-foot' },
         h('button', { class: 'frow', id: 'sync-btn', title: 'Синхронизация', onclick: openSyncDialog }, icon('cloud', 15), h('span', { class: 'flabel' }, 'Синхронизация'), h('i', { class: 'dot' })),
         h('button', { class: 'frow', title: 'Импорт, экспорт, настройки', onclick: (e) => mainMenu(e.currentTarget) }, icon('sliders', 15), h('span', { class: 'flabel' }, 'Меню')),
+        h('button', { class: 'frow', id: 'cloud-btn', title: 'Облако: ваши файлы на Google Диске', onclick: openCloudNow }, icon('folder', 15), h('span', { class: 'flabel' }, 'Облако')),
         h('button', { class: 'frow', title: 'Заблокировать', onclick: lockNow }, icon('lock', 15), h('span', { class: 'flabel' }, 'Заблокировать')),
         h('button', { class: 'frow nv-only', id: 'sfx-btn', onclick: toggleSfx }))),
     h('section', { class: 'main' },
@@ -726,6 +728,7 @@ async function ensureGroup() {
 function mainMenu(anchor) {
   popMenu(anchor, [
     { label: 'Импорт из файла', icon: 'upload', onClick: openImport },
+    { label: 'Облако: мои файлы на Google Диске', icon: 'folder', onClick: openCloudNow },
     { label: 'Экспорт и резервная копия', icon: 'download', onClick: openExport },
     { label: 'Настройки', icon: 'sliders', onClick: openSettings },
     { label: 'Ключ восстановления', icon: 'key', onClick: renewRecovery },
@@ -1222,11 +1225,41 @@ function openExport() {
         h('button', { class: 'btn danger', onclick: async () => {
           if (!(await confirmBox('Файл будет содержать все пароли в открытом виде. Продолжить?', 'Скачать CSV', true))) return;
           const gname = (id) => S.data.groups.find((g) => g.id === id)?.name || '';
-          download(`vaultboard-export-${date}.csv`, '﻿' + toCsv(liveItems(S.data), gname), 'text/csv'); toast('CSV сохранён');
+          download(`vaultboard-export-${date}.csv`, '﻿' + toCsv(liveItems(S.data).filter((i) => i.groupId !== SYS_GROUP), gname), 'text/csv'); toast('CSV сохранён');
         } }, icon('download', 16), 'Скачать'))],
     footer: [h('button', { class: 'btn', onclick: () => m.close() }, 'Закрыть')] });
 }
 
+
+
+// ───── облако (cloud.js): ключ файлов хранится служебной записью внутри хранилища и синхронизируется вместе с ним ─────
+const SYS_GROUP = '__system', CLOUD_KEY_ID = 'vb-cloudkey';
+let cloudKeyP = null;
+async function cloudKey() {
+  const imp = (raw) => crypto.subtle.importKey('raw', b64.from(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  const find = () => S.data.items.find((i) => i.id === CLOUD_KEY_ID && !i.deleted && i.notes);
+  let it = find();
+  if (it) return imp(it.notes);
+  if (cloudKeyP) return cloudKeyP;
+  cloudKeyP = (async () => {
+    // сначала подтягиваем облако: вдруг ключ уже создан на другом устройстве
+    if (S.sync?.enabled) {
+      try { await send({ cmd: 'syncNow' }); } catch { /* офлайн */ }
+      const cur = await st.loadEnvelope();
+      if (cur && cur.iv !== S.env.iv) { S.data = mergeData(S.data, await st.readData(S.key, cur)).data; S.env = cur; }
+      it = find(); if (it) return imp(it.notes);
+    }
+    const raw = b64.to(randomBytes(32));
+    S.data.items = S.data.items.filter((i) => i.id !== CLOUD_KEY_ID);
+    S.data.items.push(stamp({ id: CLOUD_KEY_ID, type: 'note', groupId: SYS_GROUP, title: 'Ключ облака Vaultboard', notes: raw, order: 0 }));
+    await commit();
+    return imp(raw);
+  })().finally(() => { cloudKeyP = null; });
+  return cloudKeyP;
+}
+function openCloudNow() { if (!S.key) return; drivePrep(); openCloud({ cloudKey, sound: (k) => nova?.blip?.() }); }
+// веб: скрипты входа Google грузим заранее, чтобы окно Google открылось сразу по кнопке
+function drivePrep() { if (IS_WEB) fb.warmup?.(); }
 
 // ───── макет «Остров» (island.js): данные и действия отдаём модулю через ctx ─────
 async function toggleFav(i) { i.favorite = !i.favorite; stamp(i); await commit(); renderBoard(); }
@@ -1249,7 +1282,7 @@ function itemIcon(i) {
 }
 const isl = createIsland({
   S, liveItems, liveGroups, liveSpaces, itemsInSpace, cleanTitle, hostOf, normalizeUrl, fieldsOf, tipBtn, copy, openSite, activate,
-  openItemEditor, addMenu, groupDialog, groupMenu, spaceDialog, spaceMenu, openSyncDialog, mainMenu, lockNow, selectSpace,
+  openItemEditor, addMenu, groupDialog, groupMenu, spaceDialog, spaceMenu, openSyncDialog, mainMenu, lockNow, selectSpace, openCloud: openCloudNow,
   setCollapsed, toggleFav, itemIcon, setUi: (u) => st.setUi(u), renderAllNow: () => renderBoard(),
   fx: () => /^test[123]$/.test(S.prefs?.scene || ''), sfxOn: () => S.prefs?.sfx !== false, toggleSfx,
   onSelect: () => nova?.itemShown?.(), onPalette: () => nova?.paletteOpened?.(),
