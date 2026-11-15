@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1794728403';
+import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1794728817';
 
 // цвета по пространствам: акцент, три пастельных шара (старый фон) и три сочных цвета глянцевых сфер.
 // k — имя тона для 3D-фона «Тестов» (nova.js). Тон выбирается по названию пространства, иначе по порядку.
@@ -133,7 +133,7 @@ export function createIsland(c) {
       acts.push(eye);
     }
     acts.push(c.tipBtn('if-btn', 'copy', 'Копировать', () => c.copy(value, copyMsg || 'Скопировано', copySecret), 16));
-    const val = link ? h('a', { class: 'if-text if-link', href: c.normalizeUrl(value) || '#', onclick: (e) => { e.preventDefault(); c.openSite(value); }, title: 'Открыть сайт' }, value) : text;
+    const val = link ? h('a', { class: 'if-text if-link', href: c.normalizeUrl(value) || '#', onclick: (e) => { e.preventDefault(); c.openSite(value); }, title: value }, value) : text;
     return h('div', { class: 'if' }, h('label', {}, label), h('div', { class: 'if-v' }, val, h('span', { class: 'if-acts' }, acts)));
   }
   function inspector(spaceItems) {
