@@ -1,17 +1,17 @@
-// Тестовый режим фонов: 6 живых 3D-сцен по референсам + плавающий пульт (номер сцены, яркость, размытие).
-// Сцены 1–4 и 6 рисуются шейдерами (raymarching в WebGL), сцена 5 — на Canvas 2D. Всё на заднем слое, клики не перехватывает.
+// Тестовый режим фонов: живые сцены 5 (кубики) и 6 (неоновый цветок) + плавающий пульт (номер сцены, яркость, размытие).
+// Сцена 6 рисуется шейдером (raymarching в WebGL), сцена 5 — на Canvas 2D. Всё на заднем слое, клики не перехватывает.
 const KEY = 'vb.bgtest';
 const load = () => { try { return { scene: 0, op: 100, blur: 0, open: false, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { scene: 0, op: 100, blur: 0, open: false }; } };
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch { /* ок */ } };
 const st = load();
-const isLight = () => document.documentElement.dataset.theme === 'light';
+if (st.scene && ![5, 6].includes(st.scene)) st.scene = 0; // сцены 1–4 удалены
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const NAMES = ['', 'Стеклянный веер', 'Органический узел', 'Янтарная спираль', 'Жидкий хром', 'Стеклянные кубики', 'Неоновый цветок'];
+const NAMES = ['', '', '', '', '', 'Стеклянные кубики', 'Неоновый цветок'];
 
 // ───────────────────────── общие куски шейдеров ─────────────────────────
 const HEAD = `precision highp float;
-uniform vec2 uRes;uniform float uT;uniform vec2 uM;uniform float uL;
+uniform vec2 uRes;uniform float uT;uniform vec2 uM;
 mat2 rot(float a){float c=cos(a),s=sin(a);return mat2(c,-s,s,c);}
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float hash3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}
@@ -36,99 +36,6 @@ void main(){
   gl_FragColor=vec4(clamp(col,0.,1.),1.);
 }`;
 
-// 1. Вращающийся стеклянный веер
-const S1 = HEAD + `
-vec2 map(vec3 p){
-  p.yz*=rot(uM.y*.35-.15);p.xz*=rot(uM.x*.5+.25);p.xy*=rot(-uT*.22);
-  float N=26.,sec=6.28318/N,a=atan(p.y,p.x),best=1e3,bid=0.;
-  for(int k=-1;k<=1;k++){
-    float idx=floor(a/sec+.5)+float(k);vec3 q=p;q.xy*=rot(-idx*sec);q.x-=1.02;q.yz*=rot(1.15);
-    float d2=length(vec2(max(abs(q.x)-.46,0.),q.y))-.19;float d=slab(d2,q.z,.022,.012);
-    if(d<best){best=d;bid=idx;}
-  }
-  return vec2(best,mod(bid,26.));
-}
-vec3 bgCol(vec2 uv){return mix(vec3(.80,.80,.82),vec3(.95,.95,.96),smoothstep(-.6,.5,uv.y))-.08*dot(uv,uv);}
-vec3 shade(vec3 p,vec3 n,vec3 rd,float id,vec3 bg){
-  float ph=fract(id/26.+uT*.035);
-  float w=smoothstep(0.,.12,ph)*(1.-smoothstep(.34,.46,ph));
-  vec3 pal=mix(vec3(.95,.38,.72),vec3(.68,.55,1.),smoothstep(.05,.22,ph));pal=mix(pal,vec3(.55,.75,.98),smoothstep(.22,.36,ph));
-  vec3 l=normalize(vec3(-.4,.8,.6));float dif=max(dot(n,l),0.),fr=pow(1.-abs(dot(n,rd)),3.),sp=pow(max(dot(reflect(rd,n),l),0.),60.);
-  vec3 refl=studio(reflect(rd,n));
-  vec3 graph=vec3(.06,.06,.075)*(.5+.5*dif)+refl*(.08+.55*fr)+sp*.9;
-  vec3 glass=mix(bg,pal,.55)*(.85+.25*dif)+refl*fr*.45+sp*.8;
-  return mix(graph,glass,w);
-}
-vec3 post(vec3 c,vec2 uv){return c;}` + TAIL(90, '.8');
-
-// 2. Органический зернистый узел в персиково-розовых тонах
-const S2 = HEAD + `
-vec2 map(vec3 p){
-  vec3 q=p;q.xz*=rot(uT*.13+uM.x*.45);q.yz*=rot(.35+uM.y*.3+sin(uT*.21)*.12);
-  float d=1e3;
-  for(int i=0;i<3;i++){float f=float(i);vec3 r=q;r.xy*=rot(f*2.094+sin(uT*.3+f)*.1);r.yz*=rot(1.15);r.x-=.36;d=smin(d,sdTorus(r,vec2(.74,.29)),.38);}
-  vec2 res=vec2(d*.9,1.);
-  vec3 b=p-vec3(-2.25,1.05,-1.2);b.xy*=rot(uT*.35);b.yz*=rot(1.2+uT*.2);float s=sdTorus(b,vec2(.36,.15))-.05*sin(atan(b.z,b.x)*5.);if(s<res.x)res=vec2(s*.8,2.);
-  vec3 c=p-vec3(2.35,-.95,-1.6);c.xy*=rot(-uT*.3);c.yz*=rot(.9);s=sdTorus(c,vec2(.3,.13))-.04*sin(atan(c.z,c.x)*5.);if(s<res.x)res=vec2(s*.8,3.);
-  return res;
-}
-vec3 bgCol(vec2 uv){return mix(vec3(.985,.93,.965),vec3(1.,.965,.985),smoothstep(-.6,.6,uv.y));}
-vec3 shade(vec3 p,vec3 n,vec3 rd,float id,vec3 bg){
-  vec3 l=normalize(vec3(.5,.75,.6));float wrap=dot(n,l)*.5+.5;
-  vec3 a=vec3(.78,.36,.62),b=vec3(1.,.74,.46);if(id>1.5){a=vec3(.86,.55,.82);b=vec3(.98,.9,.98);}
-  vec3 base=mix(a,b,smoothstep(-1.,1.2,p.x*.7+p.y*.6+n.y*.4));
-  float grain=hash3(floor(p*95.))*.5+hash3(floor(p*190.))*.5;
-  vec3 c=base*(.45+.65*wrap);c+=vec3(1.,.6,.45)*pow(1.-max(dot(n,-rd),0.),2.)*.25;c*=.86+.22*grain;
-  return mix(c,bg,id>1.5?.25:0.);
-}
-vec3 post(vec3 c,vec2 uv){return c;}` + TAIL(90, '.85');
-
-// 3. Янтарная спираль из стеклянных дисков
-const S3 = HEAD + `
-vec2 map(vec3 p){
-  vec3 q=p-vec3(0.,.12,0.);q.yz*=rot(-.12+uM.y*.25);q.xz*=rot(uT*.28+uM.x*.5);q.xy*=rot(.18);
-  float N=36.,sec=6.28318/N,a=atan(q.y,q.x),best=1e3,bid=0.;
-  for(int k=-1;k<=1;k++){
-    float idx=floor(a/sec+.5)+float(k);vec3 r=q;r.xy*=rot(-idx*sec);r.x-=1.12;r.xy*=rot(.42);
-    float d2=length(r.xz*vec2(1.,1.1))-.62;float d=slab(d2,r.y,.028,.014);
-    if(d<best){best=d;bid=idx;}
-  }
-  return vec2(best*.85,bid);
-}
-vec3 bgCol(vec2 uv){vec3 c=mix(vec3(.83,.83,.84),vec3(.93,.93,.94),smoothstep(-.6,.5,uv.y));
-  float caust=vnoise(uv*7.+vec2(uT*.05,0.))*vnoise(uv*13.-vec2(0.,uT*.04));c+=smoothstep(.25,.6,caust)*.12*smoothstep(.1,-.5,uv.y);
-  c-=.12*exp(-pow((uv.y+.48)*6.,2.))*exp(-uv.x*uv.x*3.);return c;}
-vec3 shade(vec3 p,vec3 n,vec3 rd,float id,vec3 bg){
-  vec3 l=normalize(vec3(-.3,.8,.5));float ndv=abs(dot(n,rd)),fr=pow(1.-ndv,3.),sp=pow(max(dot(reflect(rd,n),l),0.),70.);
-  vec3 amber=mix(vec3(.75,.16,.05),vec3(1.,.62,.28),smoothstep(-1.4,1.2,p.y+p.x*.3));
-  vec3 glow=vec3(1.,.72,.42)*pow(max(dot(-rd,l)*.5+.5,0.),3.)*.35;
-  vec3 c=mix(bg,amber,.72)*(.75+.3*ndv)+glow+studio(reflect(rd,n))*fr*.4+sp*.9;
-  float drop=step(.965,hash3(floor(p*38.)))*smoothstep(.2,1.,ndv);c+=drop*.35;
-  return c;
-}
-vec3 post(vec3 c,vec2 uv){return c;}` + TAIL(90, '.8');
-
-// 4. Жидкий хром: скрученное кольцо с переливами
-const S4 = HEAD + `
-vec2 map(vec3 p){
-  vec3 q=p;q.yz*=rot(1.15+uM.y*.3+sin(uT*.23)*.25);q.xy*=rot(sin(uT*.17)*.3);q.xz*=rot(uT*.22+uM.x*.5);
-  float a=atan(q.z,q.x);vec2 c=vec2(length(q.xz)-1.08,q.y);
-  c*=rot(a*3.+uT*.4);
-  float r=.23+.09*pow(abs(sin(a*7.+uT*.3)),.6)+.03*sin(a*13.-uT*.9);
-  float d=(length(c*vec2(1.,1.9))-r*1.9)/1.9*.9;
-  float g=length(c-vec2(r*.9,0.))-r*.45;d=smin(d,g,.12);
-  return vec2(d*.8,1.);
-}
-vec3 bgCol(vec2 uv){vec3 c=vec3(.95,.95,.955)-.05*dot(uv,uv);c-=.10*exp(-pow((uv.y+.5)*5.,2.))*exp(-uv.x*uv.x*2.5);return c;}
-vec3 chromeEnv(vec3 d){float y=d.y;vec3 c=mix(vec3(.18,.19,.21),vec3(.98),smoothstep(-.15,.35,y));c=mix(c,vec3(.5,.52,.55),smoothstep(.55,.62,y)*(1.-smoothstep(.62,.7,y)));
-  c+=smoothstep(.92,1.,dot(d,normalize(vec3(-.5,.7,.5))))*.8;return c;}
-vec3 shade(vec3 p,vec3 n,vec3 rd,float id,vec3 bg){
-  vec3 r=reflect(rd,n);float fr=pow(1.-max(dot(n,-rd),0.),4.);
-  vec3 c=chromeEnv(r)*vec3(.93,.95,.98);c=mix(c,vec3(1.),fr*.35);
-  return c;
-}
-vec3 post(vec3 c,vec2 uv){return c;}` + TAIL(100, '.75');
-
 // 6. Параметрический неоновый цветок из ребристых лепестков
 const S6 = HEAD + `
 float petal(vec3 r){vec3 e=r/vec3(.92,.36,.2);float d=(length(e)-1.)*.2;d+=.012*sin(r.x*58.)*smoothstep(.95,.3,abs(r.x-.0));return d;}
@@ -142,21 +49,17 @@ vec2 map(vec3 p){
   return vec2(best*s*.8,1.);
 }
 vec3 bgCol(vec2 uv){vec3 c=mix(vec3(.05,.045,.11),vec3(.11,.08,.2),smoothstep(-.7,.6,uv.y+uv.x*.2));
-  vec3 cl=mix(vec3(.93,.92,.985),vec3(.985,.98,1.),smoothstep(-.7,.6,uv.y+uv.x*.2))+vec3(.55,.45,1.)*.06*exp(-dot(uv,uv)*2.5);
-  c=mix(c,cl,uL);
   vec2 g=uv*9.;vec2 id=floor(g+vec2(0.,uT*.25));float h=hash(id);vec2 f=fract(g+vec2(0.,uT*.25))-.5-vec2(h-.5,fract(h*7.)-.5)*.6;
-  float sp=step(.82,h)*smoothstep(.07,.0,length(f));vec3 sc=mix(vec3(.55,.45,1.),vec3(.4,.95,1.),fract(h*13.));
-  c=mix(c+sp*sc*.9,mix(c,sc*.85,sp*.85),uL);return c;}
+  float sp=step(.82,h)*smoothstep(.07,.0,length(f));c+=sp*mix(vec3(.55,.45,1.),vec3(.4,.95,1.),fract(h*13.))*.9;return c;}
 vec3 shade(vec3 p,vec3 n,vec3 rd,float id,vec3 bg){
   vec3 l=normalize(vec3(-.4,.7,.6));float dif=max(dot(n,l),0.),fr=pow(1.-abs(dot(n,rd)),2.5),sp=pow(max(dot(reflect(rd,n),l),0.),40.);
   vec3 c=mix(vec3(.30,.20,.85),vec3(.55,.35,1.),dif);c=mix(c,vec3(.35,.85,1.),fr*.7);c+=sp*vec3(.8,.85,1.);
-  c+=vec3(.45,.3,1.)*(.15+.1*sin(uT*1.4))*(1.-uL*.6);
-  c=mix(c,c*.92+vec3(.05),uL);
+  c+=vec3(.45,.3,1.)*(.15+.1*sin(uT*1.4));
   return c;
 }
 vec3 post(vec3 c,vec2 uv){return c;}` + TAIL(100, '.7');
 
-const FRAGS = { 1: S1, 2: S2, 3: S3, 4: S4, 6: S6 };
+const FRAGS = { 6: S6 };
 const VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
 
 // ───────────────────────── движок ─────────────────────────
@@ -182,7 +85,7 @@ function program(n) {
   if (!v || !f) return (progs[n] = null);
   const pr = gl.createProgram(); gl.attachShader(pr, v); gl.attachShader(pr, f); gl.linkProgram(pr);
   if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) return (progs[n] = null);
-  U[n] = { l: gl.getUniformLocation(pr, 'uL'), res: gl.getUniformLocation(pr, 'uRes'), t: gl.getUniformLocation(pr, 'uT'), m: gl.getUniformLocation(pr, 'uM'), p: gl.getAttribLocation(pr, 'p') };
+  U[n] = { res: gl.getUniformLocation(pr, 'uRes'), t: gl.getUniformLocation(pr, 'uT'), m: gl.getUniformLocation(pr, 'uM'), p: gl.getAttribLocation(pr, 'p') };
   return (progs[n] = pr);
 }
 let k = 0.6;
@@ -208,7 +111,7 @@ function frame(now) {
     if (pr) {
       gl.useProgram(pr); const u = U[st.scene];
       gl.enableVertexAttribArray(u.p); gl.vertexAttribPointer(u.p, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform2f(u.res, glc.width, glc.height); gl.uniform1f(u.l, isLight() ? 1 : 0); gl.uniform1f(u.t, t); gl.uniform2f(u.m, mouse.x, mouse.y);
+      gl.uniform2f(u.res, glc.width, glc.height); gl.uniform1f(u.t, t); gl.uniform2f(u.m, mouse.x, mouse.y);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
   }
@@ -220,9 +123,7 @@ function loop() { if (!raf && st.scene && !document.hidden) raf = requestAnimati
 const RIB = [[168, 85, 247], [59, 130, 246], [239, 68, 68], [250, 204, 21], [34, 197, 94]];
 function drawCubes(t) {
   const W = c2.width, H = c2.height, g = ctx2;
-  const L5 = isLight();
-  const bg = g.createLinearGradient(0, 0, W, H);
-  if (L5) { bg.addColorStop(0, '#f7f6fc'); bg.addColorStop(1, '#e9e7f5'); } else { bg.addColorStop(0, '#0d0b1d'); bg.addColorStop(1, '#1b1433'); }
+  const bg = g.createLinearGradient(0, 0, W, H); bg.addColorStop(0, '#0d0b1d'); bg.addColorStop(1, '#1b1433');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
   const cubes = [];
   const L = Math.hypot(W, H) * 1.25, sp = 0.032, flow = (t * 0.012) % sp;
@@ -245,7 +146,6 @@ function drawCubes(t) {
     if (c.x < -c.size * 2 || c.x > W + c.size * 2 || c.y < -c.size * 2 || c.y > H + c.size * 2) continue;
     const s = c.size, [r, gg, b] = c.col, d = s * 0.38;
     g.save(); g.translate(c.x, c.y); g.rotate(c.ang);
-    if (L5) { g.fillStyle = `rgba(${r},${gg},${b},.16)`; g.beginPath(); g.ellipse(s * 0.25, s * 0.75, s * 0.7, s * 0.22, 0, 0, 6.283); g.fill(); } // мягкая цветная тень на светлом
     // верхняя и боковая грани (объём), затем передняя полупрозрачная
     g.fillStyle = `rgba(${Math.min(255, r + 70)},${Math.min(255, gg + 70)},${Math.min(255, b + 70)},.55)`;
     g.beginPath(); g.moveTo(-s / 2, -s / 2); g.lineTo(-s / 2 + d, -s / 2 - d); g.lineTo(s / 2 + d, -s / 2 - d); g.lineTo(s / 2, -s / 2); g.closePath(); g.fill();
@@ -254,7 +154,7 @@ function drawCubes(t) {
     const fg = g.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
     fg.addColorStop(0, `rgba(${Math.min(255, r + 90)},${Math.min(255, gg + 90)},${Math.min(255, b + 90)},.75)`); fg.addColorStop(1, `rgba(${r},${gg},${b},.5)`);
     g.fillStyle = fg; g.fillRect(-s / 2, -s / 2, s, s);
-    g.strokeStyle = L5 ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.45)'; g.lineWidth = Math.max(1, s * 0.04); g.strokeRect(-s / 2, -s / 2, s, s);
+    g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = Math.max(1, s * 0.04); g.strokeRect(-s / 2, -s / 2, s, s);
     g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-s / 2 + s * 0.12, -s / 2 + s * 0.12, s * 0.22, s * 0.08);
     g.restore();
   }
@@ -262,8 +162,7 @@ function drawCubes(t) {
   for (let i = 0; i < 26; i++) {
     const hx = (Math.sin(i * 91.7) * 0.5 + 0.5), hy = ((Math.sin(i * 47.3) * 0.5 + 0.5) + t * 0.01 * (1 + i % 3)) % 1;
     const a = 0.4 + 0.4 * Math.sin(t * 2 + i);
-    const [sr, sg, sb] = RIB[i % RIB.length];
-    g.fillStyle = L5 ? `rgba(${sr},${sg},${sb},${a * 0.7})` : `rgba(255,255,255,${a})`; g.beginPath(); g.arc(hx * W, (1 - hy) * H, 1.5 + (i % 3), 0, 6.283); g.fill();
+    g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(hx * W, (1 - hy) * H, 1.5 + (i % 3), 0, 6.283); g.fill();
   }
 }
 
@@ -291,7 +190,7 @@ function paintPanel() {
   }
   panel.innerHTML = `
     <div class="bgt-head"><b>Тест 3D-фонов</b><span>${st.scene ? NAMES[st.scene] : 'выключено'}</span><button class="bgt-x" title="Закрыть пульт" aria-label="Закрыть пульт">×</button></div>
-    <div class="bgt-btns">${[1, 2, 3, 4, 5, 6].map((n) => `<button data-n="${n}" class="${st.scene === n ? 'on' : ''}" title="${NAMES[n]}">${n}</button>`).join('')}<button data-n="0" class="off ${!st.scene ? 'on' : ''}">Выкл</button></div>
+    <div class="bgt-btns">${[5, 6].map((n) => `<button data-n="${n}" class="${st.scene === n ? 'on' : ''}" title="${NAMES[n]}">${n}</button>`).join('')}<button data-n="0" class="off ${!st.scene ? 'on' : ''}">Выкл</button></div>
     <label class="bgt-r"><span>Яркость</span><input type="range" min="10" max="100" step="1" value="${st.op}" data-k="op"><output>${st.op}%</output></label>
     <label class="bgt-r"><span>Размытие</span><input type="range" min="0" max="20" step="1" value="${st.blur}" data-k="blur"><output>${st.blur}px</output></label>`;
   panel.querySelector('.bgt-x').onclick = () => { st.open = false; save(); paintPanel(); };

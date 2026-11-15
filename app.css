@@ -1946,7 +1946,7 @@ html[data-bgtest][data-theme='dark'] :is(.group, .ig) { background-color: rgba(1
 .bgt-head span { flex: 1; min-width: 0; font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bgt-x { width: 26px; height: 26px; border: 0; border-radius: 50%; background: rgba(15,23,42,.06); color: #334155; font-size: 17px; line-height: 1; cursor: pointer; }
 .bgt-x:hover { background: rgba(15,23,42,.12); }
-.bgt-btns { display: grid; grid-template-columns: repeat(6, 1fr) 1.6fr; gap: 5px; margin-bottom: 10px; }
+.bgt-btns { display: grid; grid-template-columns: 1fr 1fr 1.6fr; gap: 5px; margin-bottom: 10px; }
 .bgt-btns button { height: 32px; border-radius: 10px; border: 1px solid rgba(148,163,184,.4); background: #fff; color: #0f172a; font: 600 13px var(--font, system-ui); cursor: pointer; transition: background .15s, color .15s, border-color .15s; }
 .bgt-btns button:hover { border-color: #6366f1; color: #4f46e5; }
 .bgt-btns button.on { background: #4f46e5; border-color: #4f46e5; color: #fff; }
