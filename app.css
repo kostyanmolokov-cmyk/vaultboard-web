@@ -1982,3 +1982,27 @@ html[data-look] .group > .glist, html[data-look] .group > .ghead { position: rel
   html[data-look] .board > .group, html[data-look] .board > .group-add { margin: 0 0 20px; break-inside: auto; }
   html[data-look] .board > .empty, html[data-look] .board > .afbanner { grid-column: 1 / -1; }
 }
+
+/* ═══════════ Чёткий строгий шрифт во всех темах ═══════════
+   Встроенный Inter без хинтинга на Windows выглядел толстым и размытым. Первым берём системный Segoe UI Variable
+   (Windows 11) / Segoe UI (Windows 10), на Mac — San Francisco, Inter — только запасной. */
+:root, html[data-look], html[data-scene], html[data-layout] {
+  --font: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, 'Inter', Roboto, Arial, sans-serif;
+  --mono: var(--font);
+}
+html, body, button, input, select, textarea, .isl, .pal, .bgt-panel { font-family: var(--font); }
+body { font-weight: 400; font-synthesis: none; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; text-rendering: auto; }
+/* вес: без жирноты, акценты полужирным, а не жирным */
+html[data-look] .item .ititle, #island .ic-t, .pal-t b, .cl-t b { font-weight: 500; letter-spacing: 0; }
+html[data-look] .item .isub, #island .ic-s { font-weight: 400; letter-spacing: 0; }
+html[data-look] .gname, html[data-look] .gname h3, #island .ig-name h3 { font-weight: 600; letter-spacing: 0; }
+html[data-look] .hero h1, #island .welcome h2, #island .insp-ht h2 { font-weight: 600; letter-spacing: -.01em; }
+html[data-scene='nova'] .hero h1, html[data-scene='nova'][data-layout='island'] :is(.insp-ht h2, .welcome h2) { font-weight: 300; letter-spacing: 0; }
+html[data-look] .side .slabel, html[data-look] .side-label, html[data-look] .side .navi, html[data-look] .side button { letter-spacing: 0; }
+html[data-look] .gchip, .isl-gchip, .isl-seg button, .isl-tab, .cl-chip { font-weight: 500; letter-spacing: 0; }
+html[data-look] .gchip b, .isl-gchip b, .isl-seg b { font-weight: 500; }
+.btn, .isl-add, .isl-btn { font-weight: 600; letter-spacing: 0; }
+html[data-look] .hero p { font-weight: 400; }
+html[data-look] .tab, html[data-look] .frow, html[data-look] .filters button { font-weight: 400; }
+html[data-look] .tab.on, html[data-look] .filters button.on { font-weight: 600; }
+html[data-look] .side-label { font-weight: 600; }

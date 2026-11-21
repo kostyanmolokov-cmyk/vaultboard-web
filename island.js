@@ -1,6 +1,6 @@
 // Макет «Остров»: парящая верхняя панель, вкладки-капсула, список групп и инспектор записи,
 // командный поиск ⌘K. Живёт отдельно от остальных тем: данные и действия берёт из app.js через ctx.
-import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1795250038';
+import { h, icon, renderMarkdown, dropdown, setGroupSpy, wheelToX, scrollToEl, spyFocus, popMenu } from './ui.js?v=1795250268';
 
 // цвета по пространствам: акцент, три пастельных шара (старый фон) и три сочных цвета глянцевых сфер.
 // k — имя тона для 3D-фона «Тестов» (nova.js). Тон выбирается по названию пространства, иначе по порядку.
