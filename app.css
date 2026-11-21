@@ -2006,3 +2006,4 @@ html[data-look] .hero p { font-weight: 400; }
 html[data-look] .tab, html[data-look] .frow, html[data-look] .filters button { font-weight: 400; }
 html[data-look] .tab.on, html[data-look] .filters button.on { font-weight: 600; }
 html[data-look] .side-label { font-weight: 600; }
+html[data-look] .tab.active { font-weight: 600; }
