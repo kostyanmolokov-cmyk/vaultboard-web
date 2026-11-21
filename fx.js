@@ -1,6 +1,6 @@
 // Световые микро-эффекты для тем «Жемчуг» и «Нова»: фонарик на рамках, бегущий луч, 3D-кристалл в пустых разделах.
 // Всё работает через CSS-переменные и один requestAnimationFrame, без перерисовки DOM.
-import { h } from './ui.js?v=1794731584';
+import { h } from './ui.js?v=1795246059';
 
 const ON = () => { const s = document.documentElement.dataset.scene; return s === 'pearl' || s === 'nova'; };
 const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
