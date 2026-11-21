@@ -1969,3 +1969,8 @@ html[data-bgtest][data-theme='dark'] :is(.group, .ig) { background-color: rgba(1
 .bgt-themes button.on { background: #eef2ff; border-color: #4f46e5; box-shadow: inset 0 0 0 1px #4f46e5; }
 .bgt-themes button.on b { color: #4338ca; }
 @media (max-width: 600px) { .bgt-panel { max-height: 70vh; } }
+
+/* Жемчуг: наклон групп без preserve-3d. С ним Chrome при наклоне иногда рисовал карточки ПОД матовой подложкой группы,
+   и записи выглядели размытыми/невидимыми (например, «Мама - Теща»). */
+html[data-look='pearl'] .group, html[data-look='pearl'] .empty, html[data-look='pearl'] .gate-card { transform-style: flat; }
+html[data-look] .group > .glist, html[data-look] .group > .ghead { position: relative; z-index: 1; }
