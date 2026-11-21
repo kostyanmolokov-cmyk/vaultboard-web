@@ -1974,3 +1974,11 @@ html[data-bgtest][data-theme='dark'] :is(.group, .ig) { background-color: rgba(1
    и записи выглядели размытыми/невидимыми (например, «Мама - Теща»). */
 html[data-look='pearl'] .group, html[data-look='pearl'] .empty, html[data-look='pearl'] .gate-card { transform-style: flat; }
 html[data-look] .group > .glist, html[data-look] .group > .ghead { position: relative; z-index: 1; }
+
+/* Кладка групп без CSS-колонок: в Chrome с видеокартой многоколоночная вёрстка ломала стекло (backdrop-filter),
+   и записи последней группы в колонке были размыты/невидимы. Теперь сетка с мелкими рядами, высоту считает masonry() в app.js. */
+@media (min-width: 1100px) {
+  html[data-look] .board { display: grid; columns: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 4px; column-gap: 20px; row-gap: 0; align-items: start; }
+  html[data-look] .board > .group, html[data-look] .board > .group-add { margin: 0 0 20px; break-inside: auto; }
+  html[data-look] .board > .empty, html[data-look] .board > .afbanner { grid-column: 1 / -1; }
+}
